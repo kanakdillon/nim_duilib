@@ -357,3 +357,7 @@ healthchecksdb
 /.temp
 /msvc/PropertySheets/duilib_dll.flag
 /bin/*.dll
+
+# macOS/Linux build artifacts (extension-less executables; rules above only cover *.exe/*.dll)
+/bin/*
+!/bin/resources
