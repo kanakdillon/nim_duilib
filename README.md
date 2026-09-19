@@ -670,5 +670,3 @@ nim_duilib/.claude/
 1. Skia的编译文档库，点击访问：[skia_compile](https://github.com/rhett-lee/skia_compile) ：    
 2. 本项目是直接在NIM_Duilib_Framework项目的基础上继续开发的，项目地址：[NIM_Duilib_Framework](https://github.com/netease-im/NIM_Duilib_Framework/)
 3. NIM_Duilib_Framework项目是基于duilib开发的，项目地址：[duilib](https://github.com/duilib/duilib)
-
-测试
