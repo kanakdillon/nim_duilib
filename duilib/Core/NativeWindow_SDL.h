@@ -704,6 +704,31 @@ private:
     */
     void CheckWindowSnap(SDL_Window* window);
 
+#if defined(DUILIB_BUILD_FOR_MACOS)
+    /** 获取当前鼠标位置对应的Hit Test结果
+    * @return 返回值为SDL_HitTestResult枚举值
+    */
+    int32_t GetMouseHitTestResult();
+
+    /** 开始通过鼠标手动调整窗口大小的操作
+    *   （SDL的macOS后端不支持SDL_HITTEST_RESIZE，通过此方法实现该功能）
+    * @return true表示已开始调整窗口大小的操作，该鼠标消息不再转发给界面层处理
+    */
+    bool StartManualResize();
+
+    /** 鼠标拖动过程中，手动调整窗口的大小
+    */
+    void ProcessManualResize();
+
+    /** 结束通过鼠标手动调整窗口大小的操作
+    */
+    void StopManualResize();
+
+    /** 根据Hit Test结果设置调整窗口大小的鼠标光标（仅当处于窗口边框区域时设置）
+    */
+    void UpdateResizeCursor(int32_t nHitTestResult);
+#endif
+
 private:
     /** 设置窗口ID与窗口指针的关系
     */
@@ -821,6 +846,28 @@ private:
     /** 鼠标事件的捕获状态
     */
     bool m_bMouseCapture;
+
+#if defined(DUILIB_BUILD_FOR_MACOS)
+    /** 是否正在通过鼠标手动调整窗口大小
+    */
+    bool m_bManualResizing;
+
+    /** 手动调整窗口大小的方向（值为SDL_HitTestResult枚举中的RESIZE方向值）
+    */
+    int32_t m_nManualResizeDir;
+
+    /** 手动调整窗口大小开始时，鼠标的全局坐标
+    */
+    int32_t m_nManualResizeMouseX;
+    int32_t m_nManualResizeMouseY;
+
+    /** 手动调整窗口大小开始时，窗口的矩形位置和大小（屏幕坐标）
+    */
+    int32_t m_nManualResizeWindowX;
+    int32_t m_nManualResizeWindowY;
+    int32_t m_nManualResizeWindowWidth;
+    int32_t m_nManualResizeWindowHeight;
+#endif
 
     /** 窗口透明度，该值在Windows平台是UpdateLayeredWindow函数中作为参数使用(BLENDFUNCTION.SourceConstantAlpha)，其他平台功能类似
     */

@@ -446,6 +446,13 @@ bool NativeWindow_SDL::OnSDLWindowEvent(const SDL_Event& sdlEvent)
         break;
     case SDL_EVENT_MOUSE_MOTION:
         {
+#if defined(DUILIB_BUILD_FOR_MACOS)
+            //macOS平台：SDL后端不支持SDL_HITTEST_RESIZE，正在手动调整窗口大小时，该消息不再转发给界面层
+            if (m_bManualResizing) {
+                ProcessManualResize();
+                return true;
+            }
+#endif
             UiPoint pt;
             pt.x = (int32_t)sdlEvent.motion.x;
             pt.y = (int32_t)sdlEvent.motion.y;
@@ -457,6 +464,13 @@ bool NativeWindow_SDL::OnSDLWindowEvent(const SDL_Event& sdlEvent)
             if (!ownerFlag.expired()) {
                 bool bNativeHandled = false;
                 pOwner->OnNativeSetCursorMsg(NativeMsg(SDL_EVENT_MOUSE_MOTION, 0, 0), bNativeHandled);
+
+#if defined(DUILIB_BUILD_FOR_MACOS)
+                //macOS平台：鼠标处于窗口边框的可调整大小区域时，显示调整窗口大小的光标
+                if (!ownerFlag.expired()) {
+                    UpdateResizeCursor(GetMouseHitTestResult());
+                }
+#endif
             }
         }
         break;
@@ -480,6 +494,12 @@ bool NativeWindow_SDL::OnSDLWindowEvent(const SDL_Event& sdlEvent)
         break;
     case SDL_EVENT_MOUSE_BUTTON_DOWN:
         {
+#if defined(DUILIB_BUILD_FOR_MACOS)
+            //macOS平台：SDL后端不支持SDL_HITTEST_RESIZE，鼠标左键在窗口边框按下时，启动手动调整窗口大小的操作
+            if ((sdlEvent.button.button == SDL_BUTTON_LEFT) && StartManualResize()) {
+                return true;
+            }
+#endif
             UiPoint pt;
             pt.x = (int32_t)sdlEvent.button.x;
             pt.y = (int32_t)sdlEvent.button.y;
@@ -513,6 +533,13 @@ bool NativeWindow_SDL::OnSDLWindowEvent(const SDL_Event& sdlEvent)
         break;
     case SDL_EVENT_MOUSE_BUTTON_UP:
         {
+#if defined(DUILIB_BUILD_FOR_MACOS)
+            //macOS平台：结束手动调整窗口大小的操作
+            if (m_bManualResizing && (sdlEvent.button.button == SDL_BUTTON_LEFT)) {
+                StopManualResize();
+                return true;
+            }
+#endif
             UiPoint pt;
             pt.x = (int32_t)sdlEvent.button.x;
             pt.y = (int32_t)sdlEvent.button.y;
@@ -556,6 +583,10 @@ bool NativeWindow_SDL::OnSDLWindowEvent(const SDL_Event& sdlEvent)
         break;
     case SDL_EVENT_WINDOW_FOCUS_LOST:
         {
+#if defined(DUILIB_BUILD_FOR_MACOS)
+            //macOS平台：窗口失去焦点时，结束手动调整窗口大小的操作
+            StopManualResize();
+#endif
             INativeWindow* pSetFocusWindow = nullptr;//此参数得不到，只能间接获取（这个参数代码中使用的较多，需要获取到）
             SDL_Window* pKeyboardFocus = SDL_GetKeyboardFocus();
             if (pKeyboardFocus != nullptr) {
@@ -729,7 +760,17 @@ NativeWindow_SDL::NativeWindow_SDL(INativeWindow* pOwner):
     m_bFullscreenMaximized(false),
     m_ptLastMousePos(-1, -1),
     m_bInitWindowPosFlag(false),
-    m_systemShadowType(NativeWindowShadowType::kShadowSystemDisabled)
+    m_systemShadowType(NativeWindowShadowType::kShadowSystemDisabled),
+#if defined(DUILIB_BUILD_FOR_MACOS)
+    m_bManualResizing(false),
+    m_nManualResizeDir(0),
+    m_nManualResizeMouseX(0),
+    m_nManualResizeMouseY(0),
+    m_nManualResizeWindowX(0),
+    m_nManualResizeWindowY(0),
+    m_nManualResizeWindowWidth(0),
+    m_nManualResizeWindowHeight(0)
+#endif
 {
     ASSERT(m_pOwner != nullptr);    
 }
@@ -1544,54 +1585,54 @@ int32_t NativeWindow_SDL::SDL_HitTest(SDL_Window* win, const SDL_Point* area, vo
     if (!IsWindowMaximized()) {
         //非最大化状态
         UiRect rcSizeBox = m_pOwner->OnNativeGetSizeBox();
-        if (pt.y < rcClient.top + rcSizeBox.top) {
-            if (pt.y >= rcClient.top) {
-                if (pt.x < (rcClient.left + rcSizeBox.left) && pt.x >= rcClient.left) {
-                    return SDL_HITTEST_RESIZE_TOPLEFT;//在窗口边框的左上角。
-                }
-                else if (pt.x > (rcClient.right - rcSizeBox.right) && pt.x <= rcClient.right) {
-                    return SDL_HITTEST_RESIZE_TOPRIGHT;//在窗口边框的右上角
-                }
-                else {
-                    return SDL_HITTEST_RESIZE_TOP;//在窗口的上水平边框中
-                }
-            }
-            else {
-                return SDL_HITTEST_NORMAL;//在工作区中
-            }
+
+        //四角的可命中区域：角部使用比边框更宽的热区，方便鼠标命中角部（与系统窗口的手感一致）
+        //仅当构成角部的两条边框均支持调整大小时，该角部才有效；角部区域内如有标题栏控件，则视为工作区
+        const int32_t nMinCornerSize = m_pOwner->OnNativeGetDpi().GetScaleInt(16);
+        const int32_t nCornerLeft = (rcSizeBox.left > nMinCornerSize) ? rcSizeBox.left : nMinCornerSize;
+        const int32_t nCornerRight = (rcSizeBox.right > nMinCornerSize) ? rcSizeBox.right : nMinCornerSize;
+        const int32_t nCornerTop = (rcSizeBox.top > nMinCornerSize) ? rcSizeBox.top : nMinCornerSize;
+        const int32_t nCornerBottom = (rcSizeBox.bottom > nMinCornerSize) ? rcSizeBox.bottom : nMinCornerSize;
+
+        //左上角
+        if ((rcSizeBox.left > 0) && (rcSizeBox.top > 0) &&
+            (pt.x >= rcClient.left) && (pt.x < (rcClient.left + nCornerLeft)) &&
+            (pt.y >= rcClient.top) && (pt.y < (rcClient.top + nCornerTop)) &&
+            !m_pOwner->OnNativeIsPtInCaptionBarControl(pt)) {
+            return SDL_HITTEST_RESIZE_TOPLEFT;//在窗口边框的左上角
         }
-        else if (pt.y > rcClient.bottom - rcSizeBox.bottom) {
-            if (pt.y <= rcClient.bottom) {
-                if (pt.x < (rcClient.left + rcSizeBox.left) && pt.x >= rcClient.left) {
-                    return SDL_HITTEST_RESIZE_BOTTOMLEFT;//在窗口边框的左下角
-                }
-                else if (pt.x > (rcClient.right - rcSizeBox.right) && pt.x <= rcClient.right) {
-                    return SDL_HITTEST_RESIZE_BOTTOMRIGHT;//在窗口边框的右下角
-                }
-                else {
-                    return SDL_HITTEST_RESIZE_BOTTOM;//在窗口的下水平边框中
-                }
-            }
-            else {
-                return SDL_HITTEST_NORMAL;//在工作区中
-            }
+        //右上角
+        if ((rcSizeBox.right > 0) && (rcSizeBox.top > 0) &&
+            (pt.x > (rcClient.right - nCornerRight)) && (pt.x <= rcClient.right) &&
+            (pt.y >= rcClient.top) && (pt.y < (rcClient.top + nCornerTop)) &&
+            !m_pOwner->OnNativeIsPtInCaptionBarControl(pt)) {
+            return SDL_HITTEST_RESIZE_TOPRIGHT;//在窗口边框的右上角
+        }
+        //左下角
+        if ((rcSizeBox.left > 0) && (rcSizeBox.bottom > 0) &&
+            (pt.x >= rcClient.left) && (pt.x < (rcClient.left + nCornerLeft)) &&
+            (pt.y > (rcClient.bottom - nCornerBottom)) && (pt.y <= rcClient.bottom)) {
+            return SDL_HITTEST_RESIZE_BOTTOMLEFT;//在窗口边框的左下角
+        }
+        //右下角
+        if ((rcSizeBox.right > 0) && (rcSizeBox.bottom > 0) &&
+            (pt.x > (rcClient.right - nCornerRight)) && (pt.x <= rcClient.right) &&
+            (pt.y > (rcClient.bottom - nCornerBottom)) && (pt.y <= rcClient.bottom)) {
+            return SDL_HITTEST_RESIZE_BOTTOMRIGHT;//在窗口边框的右下角
         }
 
-        if (pt.x < rcClient.left + rcSizeBox.left) {
-            if (pt.x >= rcClient.left) {
-                return SDL_HITTEST_RESIZE_LEFT;//在窗口的左边框
-            }
-            else {
-                return SDL_HITTEST_NORMAL;//在工作区中
-            }
+        //窗口的四条边框（角部区域已经优先判定过了）
+        if ((pt.y < (rcClient.top + rcSizeBox.top)) && (pt.y >= rcClient.top)) {
+            return SDL_HITTEST_RESIZE_TOP;//在窗口的上水平边框中
         }
-        if (pt.x > rcClient.right - rcSizeBox.right) {
-            if (pt.x <= rcClient.right) {
-                return SDL_HITTEST_RESIZE_RIGHT;//在窗口的右边框中
-            }
-            else {
-                return SDL_HITTEST_NORMAL;//在工作区中
-            }
+        if ((pt.y > (rcClient.bottom - rcSizeBox.bottom)) && (pt.y <= rcClient.bottom)) {
+            return SDL_HITTEST_RESIZE_BOTTOM;//在窗口的下水平边框中
+        }
+        if ((pt.x < (rcClient.left + rcSizeBox.left)) && (pt.x >= rcClient.left)) {
+            return SDL_HITTEST_RESIZE_LEFT;//在窗口的左边框
+        }
+        if ((pt.x > (rcClient.right - rcSizeBox.right)) && (pt.x <= rcClient.right)) {
+            return SDL_HITTEST_RESIZE_RIGHT;//在窗口的右边框中
         }
     }
 
@@ -1615,6 +1656,187 @@ int32_t NativeWindow_SDL::SDL_HitTest(SDL_Window* win, const SDL_Point* area, vo
     //其他，在工作区中
     return SDL_HITTEST_NORMAL;
 }
+
+#if defined(DUILIB_BUILD_FOR_MACOS)
+
+int32_t NativeWindow_SDL::GetMouseHitTestResult()
+{
+    if ((m_sdlWindow == nullptr) || (m_pOwner == nullptr) || IsUseSystemCaption()) {
+        return SDL_HITTEST_NORMAL;
+    }
+    //使用全局鼠标坐标计算窗口坐标（与SDL的Hit Test回调函数的输入参数一致）
+    float mouseX = 0;
+    float mouseY = 0;
+    SDL_GetGlobalMouseState(&mouseX, &mouseY);
+    int32_t windowX = 0;
+    int32_t windowY = 0;
+    SDL_GetWindowPosition(m_sdlWindow, &windowX, &windowY);
+    SDL_Point pt;
+    pt.x = (int32_t)SDL_lroundf(mouseX) - windowX;
+    pt.y = (int32_t)SDL_lroundf(mouseY) - windowY;
+    return SDL_HitTest(m_sdlWindow, &pt, this);
+}
+
+bool NativeWindow_SDL::StartManualResize()
+{
+    if ((m_sdlWindow == nullptr) || m_bManualResizing) {
+        return false;
+    }
+    if ((SDL_GetWindowFlags(m_sdlWindow) & SDL_WINDOW_RESIZABLE) == 0) {
+        //窗口不支持调整大小
+        return false;
+    }
+    int32_t nHitTestResult = GetMouseHitTestResult();
+    switch (nHitTestResult) {
+    case SDL_HITTEST_RESIZE_TOPLEFT:
+    case SDL_HITTEST_RESIZE_TOP:
+    case SDL_HITTEST_RESIZE_TOPRIGHT:
+    case SDL_HITTEST_RESIZE_RIGHT:
+    case SDL_HITTEST_RESIZE_BOTTOMRIGHT:
+    case SDL_HITTEST_RESIZE_BOTTOM:
+    case SDL_HITTEST_RESIZE_BOTTOMLEFT:
+    case SDL_HITTEST_RESIZE_LEFT:
+        break;
+    default:
+        //鼠标不在窗口边框的可调整大小区域
+        return false;
+    }
+
+    //记录开始调整时的鼠标位置和窗口矩形
+    float mouseX = 0;
+    float mouseY = 0;
+    SDL_GetGlobalMouseState(&mouseX, &mouseY);
+    m_nManualResizeMouseX = (int32_t)SDL_lroundf(mouseX);
+    m_nManualResizeMouseY = (int32_t)SDL_lroundf(mouseY);
+    SDL_GetWindowPosition(m_sdlWindow, &m_nManualResizeWindowX, &m_nManualResizeWindowY);
+    SDL_GetWindowSize(m_sdlWindow, &m_nManualResizeWindowWidth, &m_nManualResizeWindowHeight);
+    m_nManualResizeDir = nHitTestResult;
+    m_bManualResizing = true;
+    UpdateResizeCursor(nHitTestResult);
+    return true;
+}
+
+void NativeWindow_SDL::ProcessManualResize()
+{
+    if (!m_bManualResizing || (m_sdlWindow == nullptr)) {
+        return;
+    }
+
+    //鼠标位置相对于开始拖动时的偏移量（全局坐标）
+    float mouseX = 0;
+    float mouseY = 0;
+    SDL_GetGlobalMouseState(&mouseX, &mouseY);
+    const int32_t offsetX = (int32_t)SDL_lroundf(mouseX) - m_nManualResizeMouseX;
+    const int32_t offsetY = (int32_t)SDL_lroundf(mouseY) - m_nManualResizeMouseY;
+
+    //按调整方向计算新的窗口矩形
+    bool bResizeLeft = false;
+    bool bResizeTop = false;
+    bool bResizeRight = false;
+    bool bResizeBottom = false;
+    switch (m_nManualResizeDir) {
+    case SDL_HITTEST_RESIZE_TOPLEFT:     bResizeLeft = true;   bResizeTop = true;    break;
+    case SDL_HITTEST_RESIZE_TOP:                               bResizeTop = true;    break;
+    case SDL_HITTEST_RESIZE_TOPRIGHT:    bResizeRight = true;  bResizeTop = true;    break;
+    case SDL_HITTEST_RESIZE_RIGHT:       bResizeRight = true;                       break;
+    case SDL_HITTEST_RESIZE_BOTTOMRIGHT: bResizeRight = true;  bResizeBottom = true; break;
+    case SDL_HITTEST_RESIZE_BOTTOM:                            bResizeBottom = true; break;
+    case SDL_HITTEST_RESIZE_BOTTOMLEFT:  bResizeLeft = true;   bResizeBottom = true; break;
+    case SDL_HITTEST_RESIZE_LEFT:        bResizeLeft = true;                        break;
+    default:
+        return;
+    }
+    int32_t x = m_nManualResizeWindowX;
+    int32_t y = m_nManualResizeWindowY;
+    int32_t cx = m_nManualResizeWindowWidth;
+    int32_t cy = m_nManualResizeWindowHeight;
+    if (bResizeLeft) {
+        x += offsetX;
+        cx -= offsetX;
+    }
+    if (bResizeRight) {
+        cx += offsetX;
+    }
+    if (bResizeTop) {
+        y += offsetY;
+        cy -= offsetY;
+    }
+    if (bResizeBottom) {
+        cy += offsetY;
+    }
+
+    //限制窗口的最小值和最大值（调整左侧和顶侧时，保持窗口的右侧和底侧边缘位置不变）
+    const UiSize szMinWindow = GetWindowMinimumSize();
+    const UiSize szMaxWindow = GetWindowMaximumSize();
+    if ((szMinWindow.cx > 0) && (cx < szMinWindow.cx)) {
+        if (bResizeLeft) {
+            x -= cx - szMinWindow.cx;
+        }
+        cx = szMinWindow.cx;
+    }
+    if ((szMinWindow.cy > 0) && (cy < szMinWindow.cy)) {
+        if (bResizeTop) {
+            y -= cy - szMinWindow.cy;
+        }
+        cy = szMinWindow.cy;
+    }
+    if ((szMaxWindow.cx > 0) && (cx > szMaxWindow.cx)) {
+        if (bResizeLeft) {
+            x -= cx - szMaxWindow.cx;
+        }
+        cx = szMaxWindow.cx;
+    }
+    if ((szMaxWindow.cy > 0) && (cy > szMaxWindow.cy)) {
+        if (bResizeTop) {
+            y -= cy - szMaxWindow.cy;
+        }
+        cy = szMaxWindow.cy;
+    }
+
+    SetWindowPos(nullptr, InsertAfterFlag::kHWND_DEFAULT, x, y, cx, cy, WindowPosFlags::kSWP_NOZORDER);
+    UpdateResizeCursor(m_nManualResizeDir);
+}
+
+void NativeWindow_SDL::StopManualResize()
+{
+    if (!m_bManualResizing) {
+        return;
+    }
+    m_bManualResizing = false;
+    m_nManualResizeDir = SDL_HITTEST_NORMAL;
+
+    //按鼠标当前所在位置恢复光标
+    UpdateResizeCursor(GetMouseHitTestResult());
+}
+
+void NativeWindow_SDL::UpdateResizeCursor(int32_t nHitTestResult)
+{
+    CursorType cursorType = CursorType::kCursorArrow;
+    switch (nHitTestResult) {
+    case SDL_HITTEST_RESIZE_TOP:
+    case SDL_HITTEST_RESIZE_BOTTOM:
+        cursorType = CursorType::kCursorSizeNS;
+        break;
+    case SDL_HITTEST_RESIZE_LEFT:
+    case SDL_HITTEST_RESIZE_RIGHT:
+        cursorType = CursorType::kCursorSizeWE;
+        break;
+    case SDL_HITTEST_RESIZE_TOPLEFT:
+    case SDL_HITTEST_RESIZE_BOTTOMRIGHT:
+        cursorType = CursorType::kCursorSizeNWSE;
+        break;
+    case SDL_HITTEST_RESIZE_TOPRIGHT:
+    case SDL_HITTEST_RESIZE_BOTTOMLEFT:
+        cursorType = CursorType::kCursorSizeNESW;
+        break;
+    default:
+        //鼠标不在窗口边框的可调整大小区域，不修改光标
+        return;
+    }
+    GlobalManager::Instance().Cursor().SetCursor(cursorType);
+}
+
+#endif // DUILIB_BUILD_FOR_MACOS
 
 void NativeWindow_SDL::InitNativeWindow()
 {
@@ -1655,6 +1877,10 @@ void NativeWindow_SDL::InitNativeWindow()
 
 void NativeWindow_SDL::ClearNativeWindow()
 {
+#if defined(DUILIB_BUILD_FOR_MACOS)
+    //macOS平台：窗口销毁时，结束手动调整窗口大小的操作
+    StopManualResize();
+#endif
     SDL_Renderer* sdlRenderer = m_sdlRenderer;
     SDL_Window* sdlWindow = m_sdlWindow;
     m_sdlRenderer = nullptr;
