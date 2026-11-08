@@ -10,6 +10,7 @@
 
 #include <fstream>
 #include <sys/statvfs.h>
+#include <sys/mount.h>
 #include <stdio.h>
 
 #ifdef DUILIB_BIT_64
@@ -194,29 +195,44 @@ void DirectoryTreeImpl::GetRootPathInfoList(bool bLargeIcon, std::vector<Directo
 {
     pathInfoList.clear();
     const std::filesystem::path rootPath("/");
+
+    std::weak_ptr<WeakFlag> weakFlag;
+    std::vector<DirectoryTree::DiskInfo> diskInfoList;
+    GetDiskInfoList(weakFlag, bLargeIcon, diskInfoList);
+
+    //根卷：使用卷名作为显示名称（如"Macintosh HD"），与"计算机"视图的磁盘卡片保持一致
     DirectoryTree::PathInfo pathInfo;
     pathInfo.m_bFolder = true;
     pathInfo.m_filePath = FilePath(rootPath.native());
     pathInfo.m_displayName = pathInfo.m_filePath.ToString();
     pathInfo.m_bIconShared = false;
     pathInfo.m_nIconID = GlobalManager::Instance().Icon().AddIcon(DirectoryTreeImplGetImageString(m_pTree, bLargeIcon, _T("drive-harddisk.svg")));
-    //文件系统根目录
-    pathInfoList.push_back(pathInfo);
-
-    std::weak_ptr<WeakFlag> weakFlag;
-    std::vector<DirectoryTree::DiskInfo> diskInfoList;
-    GetDiskInfoList(weakFlag, bLargeIcon, diskInfoList);
     for (const DirectoryTree::DiskInfo& diskInfo : diskInfoList) {
-        if (diskInfo.m_filePath == FilePath(rootPath.native())) {
+        if (diskInfo.m_filePath == pathInfo.m_filePath) {
+            if (!diskInfo.m_displayName.empty()) {
+                pathInfo.m_displayName = diskInfo.m_displayName;
+                pathInfo.m_bIconShared = diskInfo.m_bIconShared;
+                pathInfo.m_nIconID = diskInfo.m_nIconID;
+            }
+            break;
+        }
+    }
+
+    //根卷放在列表首位，其后是其他挂载卷
+    pathInfoList.push_back(pathInfo);
+    for (const DirectoryTree::DiskInfo& diskInfo : diskInfoList) {
+        if (diskInfo.m_filePath == pathInfo.m_filePath) {
             continue;
         }
 
-        pathInfo.m_filePath = diskInfo.m_filePath;
-        pathInfo.m_displayName = diskInfo.m_volumeName;
-        pathInfo.m_bIconShared = diskInfo.m_bIconShared;
-        pathInfo.m_nIconID = diskInfo.m_nIconID;
+        DirectoryTree::PathInfo subPathInfo;
+        subPathInfo.m_bFolder = true;
+        subPathInfo.m_filePath = diskInfo.m_filePath;
+        subPathInfo.m_displayName = diskInfo.m_volumeName;
+        subPathInfo.m_bIconShared = diskInfo.m_bIconShared;
+        subPathInfo.m_nIconID = diskInfo.m_nIconID;
 
-        pathInfoList.push_back(pathInfo);
+        pathInfoList.push_back(subPathInfo);
     }
 }
 
@@ -346,146 +362,82 @@ uint32_t DirectoryTreeImpl::GetMyComputerIconID() const
 {
     return GlobalManager::Instance().Icon().AddIcon(DirectoryTreeImplGetImageString(m_pTree, false, _T("computer.svg")));
 }
-
-// 从设备路径提取基础设备名（如 /dev/sda1 -> sda）
-static std::string get_base_device(const std::string& dev_path)
-{
-    if (dev_path.find("/dev/") != 0) {
-        if (dev_path.find(":/") != std::string::npos) {
-            return "nfs";
-        }
-        return dev_path;
-    }
-
-    std::string dev_name = dev_path.substr(5); // 去掉"/dev/"
-    
-    // 处理分区号（如sda1->sda, nvme0n1p1->nvme0n1）
-    size_t pos = dev_name.find_first_of("0123456789", 0);
-    while ((pos != std::string::npos) && ((pos + 1) < dev_name.size()) && ::isdigit(dev_name[pos + 1])) {
-        ++pos;
-    }
-    if (pos != std::string::npos) {
-        dev_name = dev_name.substr(0, pos);
-    }
-    return dev_name;
-}
-
-// 检测设备物理类型
-static DirectoryTree::DeviceType detect_device_type(const std::string& base_dev)
-{
-    // 网络文件系统
-    if (base_dev == "nfs") {
-        return DirectoryTree::DeviceType::NFS;
-    }
-    
-    // 虚拟设备
-    if (base_dev.find("loop") == 0) {
-        return DirectoryTree::DeviceType::LOOP;
-    }
-    if ((base_dev.find("mapper") == 0) || (base_dev.find("dm-") == 0)){
-        return DirectoryTree::DeviceType::VIRT_DISK;
-    }
-    
-    // 检查/sys/block下是否存在该设备
-    std::filesystem::path sys_block = "/sys/block/" + base_dev;
-    if (!std::filesystem::exists(sys_block)) {
-        return DirectoryTree::DeviceType::UNKNOWN;
-    }
-
-    // NVMe设备
-    if (base_dev.find("nvme") == 0) {
-        return DirectoryTree::DeviceType::NVME;
-    }
-
-    // SD卡
-    if (base_dev.find("mmcblk") == 0) {
-        return DirectoryTree::DeviceType::SD_CARD;
-    }
-
-    // 光驱
-    std::ifstream type_file("/sys/block/" + base_dev + "/device/type");
-    if (type_file) {
-        int type = 0;
-        type_file >> type;
-        if (type == 5) {
-            return DirectoryTree::DeviceType::CDROM;
-        }
-    }
-
-    // USB设备（检查driver链接）
-    std::filesystem::path driver_link = "/sys/block/" + base_dev + "/device/../driver";
-    if (std::filesystem::exists(driver_link)) {
-        std::string driver = std::filesystem::read_symlink(driver_link).filename();
-        if (driver.find("usb") != std::string::npos) {
-            return DirectoryTree::DeviceType::USB;
-        }
-    }
-
-    // 机械硬盘/SSD检测
-    std::ifstream rotational_file("/sys/block/" + base_dev + "/queue/rotational");
-    if (rotational_file) {
-        int rotational;
-        rotational_file >> rotational;
-        return rotational ? DirectoryTree::DeviceType::HDD : DirectoryTree::DeviceType::SSD;
-    }
-
-    return DirectoryTree::DeviceType::UNKNOWN;
-}
-
 void DirectoryTreeImpl::GetDiskInfoList(const std::weak_ptr<WeakFlag>& /*weakFlag*/,
                                         bool bLargeIcon,
                                         std::vector<DirectoryTree::DiskInfo>& diskInfoList)
 {
-    FILE* fp = ::fopen("/proc/mounts", "r");
-    if (fp == nullptr) {
+    diskInfoList.clear();
+
+    //使用macOS的系统API获取挂载的卷（getmntinfo返回的缓冲区由系统管理，无需释放）
+    struct statfs* pMountBuf = nullptr;
+    int nMountCount = ::getmntinfo(&pMountBuf, MNT_NOWAIT);
+    if ((nMountCount <= 0) || (pMountBuf == nullptr)) {
         return;
     }
 
-    char line[2048] = { 0 };
-    while (::fgets(line, sizeof(line) - 8, fp)) {
-        char device[256] = { 0, };
-        char mount_point[256] = { 0, };
-        char fs_type[256] = { 0, };
-        ::sscanf(line, "%255s %255s %255s", device, mount_point, fs_type);
+    for (int i = 0; i < nMountCount; ++i) {
+        const struct statfs& fs = pMountBuf[i];
+        const std::string mountPoint(fs.f_mntonname);
+        const std::string fsType(fs.f_fstypename);
 
-        // 跳过虚拟文件系统（如proc、sysfs）
-        if (::strcmp(fs_type, "proc") == 0 || ::strcmp(fs_type, "sysfs") == 0 ||
-            ::strcmp(fs_type, "tmpfs") == 0 || ::strcmp(fs_type, "devtmpfs") == 0) {
+        //跳过虚拟文件系统
+        if ((fsType == "devfs") || (fsType == "autofs") || (fsType == "nullfs") ||
+            (fsType == "procfs") || (fsType == "tmpfs")) {
             continue;
         }
 
-        struct statvfs vfs = { 0, };
-        if (::statvfs(mount_point, &vfs) != 0) {
-            continue; // 跳过无法访问的挂载点
+        //跳过Finder中不显示的卷（nobrowse标志，如Recovery、VM、Preboot等系统卷）
+        if (fs.f_flags & MNT_DONTBROWSE) {
+            continue;
         }
 
-        // 计算磁盘使用情况
-        unsigned long total = vfs.f_blocks * vfs.f_frsize;
-        unsigned long avail = vfs.f_bavail * vfs.f_frsize;
+        //跳过macOS的firmlink系统内部卷（/System/Volumes/Data、Preboot、VM等），不在"计算机"中显示
+        if (mountPoint.rfind("/System/Volumes/", 0) == 0) {
+            continue;
+        }
+        if (mountPoint == "/dev") {
+            continue;
+        }
 
+        //计算磁盘使用情况
+        uint64_t total = static_cast<uint64_t>(fs.f_blocks) * fs.f_bsize;
+        uint64_t avail = static_cast<uint64_t>(fs.f_bavail) * fs.f_bsize;
         if (total == 0) {
             continue;
         }
 
-        std::string base_dev = get_base_device(device);
-        DirectoryTree::DeviceType deviceType = detect_device_type(base_dev);
-        if (deviceType == DirectoryTree::DeviceType::UNKNOWN) {
-            if (strstr(device, "/dev/sr") || strstr(device, "/dev/cdrom")) {
-                deviceType = DirectoryTree::DeviceType::CDROM;
-            }
-            else if (std::string(device) == "vmhgfs-fuse") {
-                deviceType = DirectoryTree::DeviceType::SHARE;
-            }
+        //判断设备类型
+        DirectoryTree::DeviceType deviceType = DirectoryTree::DeviceType::HDD;
+        if ((fsType == "nfs") || (fsType == "smbfs") || (fsType == "afpfs") || (fsType == "webdavfs")) {
+            //网络磁盘
+            deviceType = DirectoryTree::DeviceType::SHARE;
+        }
+        else if ((fsType == "cd9660") || (fsType == "udf")) {
+            //光盘
+            deviceType = DirectoryTree::DeviceType::CDROM;
+        }
+        else if ((mountPoint.rfind("/Volumes/", 0) == 0) && (mountPoint != "/Volumes")) {
+            //内置卷只挂在"/"，/Volumes下的卷均为外接设备（U盘、移动硬盘、挂载的dmg等）
+            deviceType = DirectoryTree::DeviceType::USB;
+        }
+
+        //显示名称：根卷显示为"Macintosh HD"，其他卷取挂载点末段名称
+        std::string displayName;
+        if (mountPoint == "/") {
+            displayName = "Macintosh HD";
+        }
+        else {
+            size_t nPos = mountPoint.find_last_of('/');
+            displayName = (nPos == std::string::npos) ? mountPoint : mountPoint.substr(nPos + 1);
         }
 
         DirectoryTree::DiskInfo diskInfo;
-        diskInfo.m_displayName = StringConvert::UTF8ToT(device);        
-        diskInfo.m_filePath = FilePath(StringConvert::UTF8ToT(mount_point));
-
+        diskInfo.m_displayName = StringConvert::UTF8ToT(displayName);
+        diskInfo.m_filePath = FilePath(StringConvert::UTF8ToT(mountPoint));
         diskInfo.m_volumeName = diskInfo.m_displayName;
         diskInfo.m_deviceType = deviceType;
-        diskInfo.m_mountOn = StringConvert::UTF8ToT(mount_point);
-        diskInfo.m_fileSystem = StringConvert::UTF8ToT(fs_type);
+        diskInfo.m_mountOn = StringConvert::UTF8ToT(mountPoint);
+        diskInfo.m_fileSystem = StringConvert::UTF8ToT(fsType);
         diskInfo.m_totalBytes = total;
         diskInfo.m_freeBytes = avail;
 
@@ -503,8 +455,6 @@ void DirectoryTreeImpl::GetDiskInfoList(const std::weak_ptr<WeakFlag>& /*weakFla
 
         diskInfoList.emplace_back(std::move(diskInfo));
     }
-
-    ::fclose(fp);
 }
 
 } //namespace ui
