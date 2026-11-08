@@ -52,6 +52,7 @@ VirtualListBox::VirtualListBox(Window* pWindow, Layout* pLayout)
     , m_pVirtualLayout(nullptr)
     , m_nLastNoShiftIndex(0)
     , m_bEnableUpdateProvider(true)
+    , m_bEnableRefresh(true)
 {
     ASSERT(pLayout != nullptr);
 }
@@ -412,23 +413,68 @@ void VirtualListBox::SetSelectNoneExclude(const std::vector<size_t>& excludeInde
     }
 }
 
+bool VirtualListBox::SetEnableRefresh(bool bEnable)
+{
+    bool bOldEnable = m_bEnableRefresh;
+    m_bEnableRefresh = bEnable;
+    return bOldEnable;
+}
+
+bool VirtualListBox::IsEnableRefresh() const
+{
+    return m_bEnableRefresh;
+}
+
 void VirtualListBox::RefreshElements(size_t nStartElementIndex, size_t nEndElementIndex)
 {
+    //是否允许刷新的判断，在OnModelDataChanged函数中统一处理
     OnModelDataChanged(nStartElementIndex, nEndElementIndex);
 }
 
 void VirtualListBox::RefreshElements(const std::vector<size_t>& elementIndexs)
 {
+    if (!IsEnableRefresh()) {
+        return;//禁止刷新界面
+    }
     if (elementIndexs.empty()) {
         return;
     }
-    std::set<size_t> indexSet;
-    for (size_t nElementIndex : elementIndexs) {
-        indexSet.insert(nElementIndex);
+    //排序 + 去重，然后用二分查找判断元素是否需要刷新（替代 std::set，避免逐节点堆分配）
+    std::vector<size_t> sortedIndexs = elementIndexs;
+    std::sort(sortedIndexs.begin(), sortedIndexs.end());
+    sortedIndexs.erase(std::unique(sortedIndexs.begin(), sortedIndexs.end()), sortedIndexs.end());
+    RefreshVisibleElements([&sortedIndexs](size_t nElementIndex) {
+        return std::binary_search(sortedIndexs.begin(), sortedIndexs.end(), nElementIndex);
+        }, sortedIndexs.size());
+}
+
+void VirtualListBox::OnModelDataChanged(size_t nStartElementIndex, size_t nEndElementIndex)
+{
+    if (!IsEnableRefresh()) {
+        return;//禁止刷新界面
     }
+    if (nEndElementIndex < nStartElementIndex) {
+        return;
+    }
+    //需要刷新的元素个数：每个元素只会绑定到一个界面控件，命中足量元素后即可提前结束扫描
+    //（区间长度大于1时同样有效）
+    const size_t nTargetCount = nEndElementIndex - nStartElementIndex + 1;
+    RefreshVisibleElements([nStartElementIndex, nEndElementIndex](size_t nElementIndex) {
+        return (nElementIndex >= nStartElementIndex) && (nElementIndex <= nEndElementIndex);
+        }, nTargetCount);
+}
+
+void VirtualListBox::RefreshVisibleElements(const std::function<bool(size_t)>& isElementNeedRefresh,
+                                            size_t nTargetCount)
+{
+    ASSERT(isElementNeedRefresh != nullptr);
+
     VirtualListBox::RefreshDataList refreshDataList;
     VirtualListBox::RefreshData refreshData;
     const size_t nItemCount = m_items.size();
+    refreshDataList.reserve(nItemCount);
+
+    size_t nFilledCount = 0;
     for (size_t nItemIndex = 0; nItemIndex < nItemCount; ++nItemIndex) {
         Control* pControl = m_items[nItemIndex];
         if ((pControl == nullptr) || !pControl->IsVisible()) {
@@ -438,48 +484,26 @@ void VirtualListBox::RefreshElements(const std::vector<size_t>& elementIndexs)
         if (pListBoxItem == nullptr) {
             continue;
         }
-        size_t nElementIndex = pListBoxItem->GetElementIndex();
-        if (nElementIndex != Box::InvalidIndex) {
-            if (indexSet.find(nElementIndex) != indexSet.end()) {                
-                FillElementData(pControl, nElementIndex);
-                pControl->Invalidate();
-
-                refreshData.nItemIndex = nItemIndex;
-                refreshData.pControl = pControl;
-                refreshData.nElementIndex = nElementIndex;
-                refreshDataList.push_back(refreshData);
-            }
-        }
-    }
-    if (!refreshDataList.empty()) {
-        OnRefreshElements(refreshDataList);
-        OnFilledElements(refreshDataList);
-    }
-}
-
-void VirtualListBox::OnModelDataChanged(size_t nStartElementIndex, size_t nEndElementIndex)
-{
-    VirtualListBox::RefreshDataList refreshDataList;
-    VirtualListBox::RefreshData refreshData;
-    size_t nItemCount = m_items.size();
-    for (size_t nItemIndex = 0; nItemIndex < nItemCount; ++nItemIndex) {
-        Control* pControl = m_items[nItemIndex];
-        if ((pControl == nullptr) || !pControl->IsVisible()) {
+        const size_t nElementIndex = pListBoxItem->GetElementIndex();
+        if (nElementIndex == Box::InvalidIndex) {
+            //该控件当前未绑定数据元素，无需刷新
             continue;
         }
-        IListBoxItem* pListBoxItem = dynamic_cast<IListBoxItem*>(pControl);
-        if (pListBoxItem != nullptr) {
-            size_t nElementIndex = pListBoxItem->GetElementIndex();
-            if ((nElementIndex >= nStartElementIndex) &&
-                (nElementIndex <= nEndElementIndex)) {
-                FillElementData(pControl, nElementIndex);
-                pControl->Invalidate();
+        if (!isElementNeedRefresh(nElementIndex)) {
+            continue;
+        }
+        FillElementData(pControl, nElementIndex);
+        pControl->Invalidate();
 
-                refreshData.nItemIndex = nItemIndex;
-                refreshData.pControl = pControl;
-                refreshData.nElementIndex = nElementIndex;
-                refreshDataList.push_back(refreshData);
-            }
+        refreshData.nItemIndex = nItemIndex;
+        refreshData.pControl = pControl;
+        refreshData.nElementIndex = nElementIndex;
+        refreshDataList.push_back(refreshData);
+
+        ++nFilledCount;
+        if ((nTargetCount != 0) && (nFilledCount >= nTargetCount)) {
+            //已覆盖全部需要刷新的元素，提前结束扫描
+            break;
         }
     }
     if (!refreshDataList.empty()) {
@@ -512,6 +536,7 @@ void VirtualListBox::OnFilledElements(const RefreshDataList& refreshDataList)
 void VirtualListBox::OnModelCountChanged()
 {
     //元素的个数发生变化（有添加或者删除）
+    //是否允许刷新的判断，在Refresh函数中统一处理
     Refresh();
 }
 
@@ -522,6 +547,9 @@ bool VirtualListBox::IsEnableUpdateProvider() const
 
 void VirtualListBox::Refresh(bool bSync)
 {
+    if (!IsEnableRefresh()) {
+        return;//禁止刷新界面
+    }
     if (!HasDataProvider()) {
         return;
     }

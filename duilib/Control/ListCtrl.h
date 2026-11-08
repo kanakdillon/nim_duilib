@@ -12,6 +12,7 @@
 namespace ui
 {
 class RichEdit;
+class DateTime;
 
 class ListCtrlData;
 class ListCtrlReportView;
@@ -23,6 +24,7 @@ class ListCtrlItem;
 class ListCtrlSubItem;
 class ListCtrlIconViewItem;
 class ListCtrlListViewItem;
+class ListCtrlComboFlyout;
 
 /** ListCtrl控件
 */
@@ -144,6 +146,23 @@ public:
     bool SetColumnWidthAuto(size_t columnIndex);
     bool SetColumnWidthAutoById(size_t columnId);
 
+    /** 显示/隐藏一列
+    * @param [in] columnIndex 列索引序号：[0, GetColumnCount())
+    * @param [in] columnId 列的ID值，通过ListCtrlHeaderItem::GetColumnId()函数获取
+    * @param [in] bColumnVisible true表示显示该列，false表示隐藏该列
+    * @return 返回true表示设置成功，false表示参数无效
+    */
+    bool SetColumnVisible(size_t columnIndex, bool bColumnVisible);
+    bool SetColumnVisibleById(size_t columnId, bool bColumnVisible);
+
+    /** 判断一列是否显示
+    * @param [in] columnIndex 列索引序号：[0, GetColumnCount())
+    * @param [in] columnId 列的ID值，通过ListCtrlHeaderItem::GetColumnId()函数获取
+    * @return 返回true表示该列显示，返回false表示该列隐藏（或者参数无效）
+    */
+    bool IsColumnVisible(size_t columnIndex) const;
+    bool IsColumnVisibleById(size_t columnId) const;
+
     /** 按设置的宽度值调整所有列的宽度
     * @param [in] columnWidthList 容器的下标对应列表列的索引序号，容器的值代表各个列的期望宽度
     *             列的宽度设置支持支持三种类型：固定数值、自动适应、拉伸。
@@ -166,6 +185,15 @@ public:
     /** 是否支持列表头拖动改变列的顺序
     */
     bool IsEnableHeaderDragOrder() const;
+
+    /** 设置冻结列的个数（固定列表左侧的前N列，不随横向滚动而移动）
+    * @param [in] nCount 冻结的列数，0表示不冻结
+    */
+    void SetFrozenColumnCount(size_t nCount);
+
+    /** 获取冻结列的个数
+    */
+    size_t GetFrozenColumnCount() const;
 
     /** 设置是否显示表头控件
     */
@@ -234,6 +262,18 @@ public:
     /** 删除所有行的数据项(行数为0)
     */
     bool DeleteAllDataItems();
+
+    /** 批量删除指定行的数据项(行数-K)
+    * @param [in] itemIndexs 需要删除的数据项索引号列表，有效范围：[0, GetDataItemCount())；
+    *                        重复索引与越界索引会被忽略
+    * @return 返回实际删除的行数
+    */
+    size_t DeleteDataItems(const std::vector<size_t>& itemIndexs);
+
+    /** 压缩数据存储：整理行身份与存储页布局，回收已删除行占用的内存
+        说明：显式的整表维护操作，仅在无填充/绘制进行时调用；调用后内部已发出的单元格原始指针失效
+    */
+    void CompactStorage();
 
     /** 设置数据项的默认高度(行高)
     * @param [in] nItemHeight 高度值
@@ -458,6 +498,27 @@ public:
     int32_t GetSubItemTextFormat(size_t itemIndex, size_t columnIndex) const;
     int32_t GetSubItemTextFormatById(size_t itemIndex, size_t columnId) const;
 
+    /** 设置指定数据项的文本是否为单行显示（仅Report视图有效）
+        说明：Report视图为虚表，单元格控件在滚动时会被复用，因此该属性存储在数据模型中，
+              由框架在填充单元格数据时应用到复用的控件上；设置为多行(false)后，文本会按单元格
+              宽度自动换行，此时行高需由调用方通过 SetDataItemHeight 调整，否则超出部分会被裁剪
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
+    * @param [in] columnId 列的ID
+    * @param [in] bSingleLine true表示单行显示（超出时按省略号裁剪），false表示多行显示（自动换行）
+    */
+    bool SetSubItemSingleLine(size_t itemIndex, size_t columnIndex, bool bSingleLine);
+    bool SetSubItemSingleLineById(size_t itemIndex, size_t columnId, bool bSingleLine);
+
+    /** 获取指定数据项的文本是否为单行显示（仅Report视图有效）
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
+    * @param [in] columnId 列的ID
+    * @return true表示单行显示，false表示多行显示（自动换行）
+    */
+    bool IsSubItemSingleLine(size_t itemIndex, size_t columnIndex) const;
+    bool IsSubItemSingleLineById(size_t itemIndex, size_t columnId) const;
+
     /** 设置指定数据项的背景颜色
     * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
     * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
@@ -543,6 +604,41 @@ public:
     bool IsSubItemEditable(size_t itemIndex, size_t columnIndex) const;
     bool IsSubItemEditableById(size_t itemIndex, size_t columnId) const;
 
+    /** 设置该列以进度条方式显示
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
+    * @param [in] columnId 列的ID
+    * @param [in] nProgress 进度值，有效范围[0, 100]，-1表示不显示进度条（按普通文本显示）
+    */
+    bool SetSubItemProgress(size_t itemIndex, size_t columnIndex, int32_t nProgress);
+    bool SetSubItemProgressById(size_t itemIndex, size_t columnId, int32_t nProgress);
+
+    /** 获取该列的进度值
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
+    * @param [in] columnId 列的ID
+    * @return 返回进度值，有效范围[0, 100]，-1表示不显示进度条（按普通文本显示）
+    */
+    int32_t GetSubItemProgress(size_t itemIndex, size_t columnIndex) const;
+    int32_t GetSubItemProgressById(size_t itemIndex, size_t columnId) const;
+
+    /** 设置该列的文本是否按富文本（类HTML格式）渲染
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
+    * @param [in] columnId 列的ID
+    * @param [in] bRichText true表示按富文本渲染，false表示按普通文本渲染
+    */
+    bool SetSubItemRichText(size_t itemIndex, size_t columnIndex, bool bRichText);
+    bool SetSubItemRichTextById(size_t itemIndex, size_t columnId, bool bRichText);
+
+    /** 获取该列的文本是否按富文本（类HTML格式）渲染
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
+    * @param [in] columnId 列的ID
+    */
+    bool IsSubItemRichText(size_t itemIndex, size_t columnIndex) const;
+    bool IsSubItemRichTextById(size_t itemIndex, size_t columnId) const;
+
 public:
     /** 对数据排序
     * @param [in] columnIndex 列的索引号，有效范围：[0, GetColumnCount())
@@ -551,6 +647,8 @@ public:
     * @param [in] nSortFlag 排序方法标志位，参见 ListCtrlSubItemSortFlag 的枚举值
     * @param [in] pfnCompareFunc 自定义的比较函数，如果为nullptr, 则使用默认的比较函数
     * @param [in] pUserData 用户自定义数据，调用比较函数的时候，通过参数传回给比较函数
+    * 说明：排序是稳定的（std::stable_sort），比较结果相等（同值）的元素保持原始相对顺序，
+    *       因此同组（如文件夹/文件）或同值的行不会因排序而乱序、交错；升序和降序均保持该特性。
     */
     bool SortDataItems(size_t columnIndex, bool bSortedUp, uint8_t nSortFlag = ListCtrlSubItemSortFlag::kDefault,
                        ListCtrlDataCompareFunc pfnCompareFunc = nullptr,
@@ -574,24 +672,92 @@ public:
     */
     void SetMultiSelect(bool bMultiSelect);
 
-    /** 批量设置选择数据项
+    /** 批量设置选择数据项（行选择专用）
+        说明：仅在行选择模式（kRow）下生效；单元格选择模式（kCell）下对行选择不做任何修改（no-op）
     * @param [in] selectedIndexs 需要设置选择的数据项索引号，有效范围：[0, GetDataItemCount())
     * @param [in] bClearOthers 如果为true，表示对其他已选择的进行清除选择，只保留本次设置的为选择项
     */
     void SetSelectedDataItems(const std::vector<size_t>& selectedIndexs, bool bClearOthers);
 
-    /** 获取选择的元素列表
+    /** 获取选择的元素列表（行选择专用）
+        说明：仅在行选择模式（kRow）下有结果；单元格选择模式（kCell）下返回空列表
     * @param [in] itemIndexs 返回当前选择的数据项索引号，有效范围：[0, GetDataItemCount())
     */
     void GetSelectedDataItems(std::vector<size_t>& itemIndexs) const;
 
-    /** 选择全部
+    /** 选择全部（按当前选择模式分派：行选择模式全选行，单元格选择模式全选单元格）
     */
     void SetSelectAll();
 
-    /** 取消所有选择
+    /** 取消所有选择（按当前选择模式分派：行选择模式清空行选择，单元格选择模式清空单元格选择）
     */
     void SetSelectNone();
+
+public:
+    /** 获取选择模式（行选择模式 / 单元格选择模式）
+    */
+    ListCtrlSelectionMode GetSelectionMode() const;
+
+    /** 设置选择模式（默认是行选择模式）
+        说明：切换到单元格选择模式时，会自动清除当前的行选择；切回行选择模式时，会自动清除单元格选择
+    * @param [in] mode 选择模式
+    */
+    void SetSelectionMode(ListCtrlSelectionMode mode);
+
+    /** 获取当前单元格（单元格选择模式下有效，无效时返回的ListCtrlCellId::IsValid()为false）
+    */
+    ListCtrlCellId GetCurrentCell() const;
+
+    /** 设置当前单元格（单元格选择模式下有效；不能用于行选择模式）
+    * @param [in] nRowIndex 行的显示索引号，有效范围：[0, GetDataItemCount())
+    * @param [in] nColumnId 列的ID值
+    * @return 返回是否设置成功（行索引或列ID无效，或者当前不是单元格选择模式时返回false）
+    */
+    bool SetCurrentCell(size_t nRowIndex, size_t nColumnId);
+
+    /** 设置单元格的选择区域（锚点 + 焦点，构成规范化矩形）
+    * @param [in] anchorCell 锚点单元格
+    * @param [in] focusCell 焦点单元格（为无效值时，仅设置锚点单元格，不改变选中集合）
+    * @param [in] bAdditive true=向已有选择追加该矩形区域（不清除已有）；false=先清除已有单元格选择再设置
+    * @return 返回是否设置成功（锚点无效或当前不是单元格选择模式时返回false）
+    */
+    bool SetCellSelection(const ListCtrlCellId& anchorCell, const ListCtrlCellId& focusCell, bool bAdditive);
+
+    /** 清除单元格的选择区域
+        仅在确实存在选择状态（有选中单元格或当前格）时才刷新界面并派发 kEventCellSelectionChanged 事件
+    */
+    void ClearCellSelection();
+
+    /** 获取单元格的选择区域（锚点 + 焦点，未做规范化）
+    */
+    void GetCellSelection(ListCtrlCellId& anchorCell, ListCtrlCellId& focusCell) const;
+
+    /** 批量设置选择的单元格（单元格选择等价 API，对应行选择的 SetSelectedDataItems）
+        说明：仅在单元格选择模式（kCell）下生效；行选择模式（kRow）下不做任何修改（no-op）
+    * @param [in] cellList 需要设置为选中状态的单元格列表
+    * @param [in] bClearOthers 如果为true，表示先清除其它已选中的单元格，只保留本次设置的
+    */
+    void SetSelectedCells(const std::vector<ListCtrlCellId>& cellList, bool bClearOthers);
+
+    /** 获取选择的单元格列表（规范化区域内展开的单元格，按行优先顺序）
+    * @param [in] cellList 返回选择的单元格列表
+    * @return 返回选择的单元格个数
+    * 说明：返回选中的全部单元格；单元格合并（跨行/跨列）经评审后决定不实施
+    *       （需表头与行的布局模型整体升级，改动面过大），故不存在"被合并覆盖的单元格"。
+    */
+    size_t GetSelectedCells(std::vector<ListCtrlCellId>& cellList) const;
+
+    /** 判断一个单元格是否在选择的区域内
+    * @param [in] nRowIndex 行的显示索引号，有效范围：[0, GetDataItemCount())
+    * @param [in] nColumnId 列的ID值
+    */
+    bool IsCellSelected(size_t nRowIndex, size_t nColumnId) const;
+
+    /** 判断一个单元格是否为当前单元格
+    * @param [in] nRowIndex 行的显示索引号，有效范围：[0, GetDataItemCount())
+    * @param [in] nColumnId 列的ID值
+    */
+    bool IsCellCurrent(size_t nRowIndex, size_t nColumnId) const;
 
 public:
     /** 获取当前显示的数据项列表，顺序是从上到下
@@ -625,8 +791,25 @@ public:
     */
     void RefreshDataItems(const std::vector<size_t>& dataItemIndexs);
 
+    /** 刷新指定单元格（单格刷新，仅Report视图有效；用于进度、状态类列的局部更新，避免整行刷新）
+    * @param [in] dataItemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnIndex 列索引序号, 有效范围：[0, GetColumnCount())
+    * @return 返回true表示更新成功（该单元格当前在可见范围内并已完成刷新）；
+    *         如果返回false，表示参数无效，或者该单元格当前不在可见范围内（数据本身已更新，滚动到可见范围后会显示最新数据）
+    */
+    bool RefreshSubItem(size_t dataItemIndex, size_t columnIndex);
+
+    /** 刷新指定单元格（单格刷新，仅Report视图有效；用于进度、状态类列的局部更新，避免整行刷新）
+    * @param [in] dataItemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID值，通过ListCtrlHeaderItem::GetColumnId()函数获取
+    * @return 返回true表示更新成功（该单元格当前在可见范围内并已完成刷新）；
+    *         如果返回false，表示参数无效，或者该单元格当前不在可见范围内（数据本身已更新，滚动到可见范围后会显示最新数据）
+    */
+    bool RefreshSubItemById(size_t dataItemIndex, size_t columnId);
+
     /** 是否允许刷新界面
-    * @param [in] bEnable 如果为true，允许通过Refresh()函数刷新界面; 如果为false，则允许通过Refresh()函数刷新界面
+    * @param [in] bEnable 如果为true，允许通过Refresh系列函数刷新界面; 如果为false，则禁止通过Refresh系列函数刷新界面，
+                          并且数据变化的时候也不会自动刷新界面
     * @return 返回旧的IsEnableRefresh()状态
     */
     bool SetEnableRefresh(bool bEnable);
@@ -699,6 +882,107 @@ public:
     */
     bool IsEnableItemEdit() const;
 
+    /** 设置是否支持复制选中内容到剪贴板（Ctrl+C，TSV 格式；默认 true）
+    */
+    void SetEnableCopy(bool bEnableCopy);
+
+    /** 判断是否支持复制选中内容到剪贴板
+    */
+    bool IsEnableCopy() const;
+
+    /** 设置是否支持 CSV 导出（Ctrl+Shift+C 复制为 CSV，及 ExportToCsvFile；默认 true）
+    */
+    void SetEnableCsvExport(bool bEnableCsvExport);
+
+    /** 判断是否支持 CSV 导出
+    */
+    bool IsEnableCsvExport() const;
+
+    /** 复制当前选中内容到剪贴板
+    * @param [in] bCsvFormat true 表示 CSV 格式（受 enable_csv_export 开关控制），
+    *                       false 表示 TSV 格式（受 enable_copy 开关控制）
+    * @return 返回 true 表示复制成功；开关关闭、无选中内容、剪贴板写入失败时返回 false
+    */
+    bool CopySelectionToClipboard(bool bCsvFormat = false);
+
+    /** 导出为 CSV 文件（UTF-8 BOM 编码，便于 Excel 直接打开）
+    * @param [in] strFilePath CSV 文件路径（由应用提供，绝对路径）
+    * @param [in] bSelectedOnly true 表示仅导出当前选中内容，false 表示导出整表
+    * @return 返回 true 表示导出成功；enable_csv_export 开关关闭、无数据、写文件失败时返回 false
+    */
+    bool ExportToCsvFile(const DString& strFilePath, bool bSelectedOnly = true);
+
+public:
+    /** @name 单元格编辑（kCell 模式；仅 Report 视图）
+    * @{ */
+
+    /** 按列的序号设置编辑器类型（作用于该列的所有单元格）
+    * @param [in] columnIndex 列的序号，有效范围：[0, GetColumnCount())
+    * @param [in] editorType 编辑器类型（文本/数值/日期）
+    */
+    void SetColumnEditorType(size_t columnIndex, ListCtrlEditorType editorType);
+
+    /** 按列的ID设置编辑器类型（推荐：列ID稳定，列序可变）
+    * @param [in] columnId 列的ID
+    * @param [in] editorType 编辑器类型
+    */
+    void SetColumnEditorTypeById(size_t columnId, ListCtrlEditorType editorType);
+
+    /** 获取某列序号的编辑器类型（未设置时为 kEditText）
+    */
+    ListCtrlEditorType GetColumnEditorType(size_t columnIndex) const;
+
+    /** 获取某列ID的编辑器类型（未设置时为 kEditText）
+    */
+    ListCtrlEditorType GetColumnEditorTypeById(size_t columnId) const;
+
+    /** 按列的序号设置候选值列表（kEditCombo 编辑器使用）
+    * @param [in] columnIndex 列的序号，有效范围：[0, GetColumnCount())
+    * @param [in] candidates 候选值列表（纯文本，按传入顺序显示）；传入空列表表示清空候选
+    */
+    void SetColumnCandidates(size_t columnIndex, const std::vector<DString>& candidates);
+
+    /** 按列的ID设置候选值列表（推荐：列ID稳定，列序可变）
+    * @param [in] columnId 列的ID
+    * @param [in] candidates 候选值列表（纯文本，按传入顺序显示）；传入空列表表示清空候选
+    */
+    void SetColumnCandidatesById(size_t columnId, const std::vector<DString>& candidates);
+
+    /** 获取某列序号的候选值列表（未设置时返回空列表）
+    */
+    std::vector<DString> GetColumnCandidates(size_t columnIndex) const;
+
+    /** 获取某列ID的候选值列表（未设置时返回空列表）
+    */
+    std::vector<DString> GetColumnCandidatesById(size_t columnId) const;
+
+    /** 进入指定单元格的编辑状态（等同于对当前格按 F2）
+    * 前置条件：enable_item_edit 为 true、kCell 模式、Report 视图、该单元格"可编辑"且所在行可选；
+    *           行不在可视区时先滚动到可视区
+    * @param [in] nRowIndex 行的显示索引号，有效范围：[0, GetDataItemCount())
+    * @param [in] nColumnId 列的ID
+    * @return 返回 true 表示已进入编辑状态（或已在编辑中）
+    */
+    bool EnterCellEdit(size_t nRowIndex, size_t nColumnId);
+
+    /** 对"当前单元格"进入编辑状态（F2 的实现入口）
+    * @return 返回 true 表示已进入编辑状态
+    */
+    bool EnterCurrentCellEdit();
+
+    /** 判断当前是否处于单元格编辑状态（kCell 模式）
+    */
+    bool IsCellEditing() const;
+
+    /** 获取当前正在编辑的单元格
+    * @param [out] cell 返回单元格定位（无编辑态时 nRowIndex / nColumnId 为 Box::InvalidIndex）
+    * @return 返回是否处于单元格编辑状态
+    */
+    bool GetEditingCell(ListCtrlCellId& cell) const;
+
+    /** @} */
+
+public:
     /** 获取编辑框控件的接口(只有执行编辑操作以后，才有值)
     */
     RichEdit* GetRichEdit() const;
@@ -968,26 +1252,17 @@ public:
      */
     void AttachDataItemCountChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventDataItemCountChanged, callback, callbackID); }
 
-    /** 监听Report视图数据项UI元素填充事件（虚表，填充某行数据）
+    /** 监听Report视图数据项UI元素填充事件（虚表）
+     *  触发场景：整行填充数据时触发一次；调用RefreshSubItem单格刷新时也会触发一次
      * @param [in] callback 要绑定的回调函数
      * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
      * 参数说明:
      *   wParam: 关联的UI容器子项索引号，有效范围：[0, GetItemCount())，如果值为Box::InvalidIndex，表示未关联任何子项
      *   lParam: 关联的UI容器子项索引号对应的数据项索引号，有效范围：[0, GetDataItemCount())，如果值为Box::InvalidIndex，表示无关联的数据项
      *   pEventData: 关联的UI容器子项的界面控件接口指针，类型为：ListCtrlItem*指针，数据按行填充
+     *   pExtraData: 关联的单元格指针，类型为：ListCtrlSubItem*指针；为nullptr表示填充了本行的所有单元格；非nullptr表示只填充了该单元格（单格刷新）
      */
     void AttachReportViewItemFilled(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventReportViewItemFilled, callback, callbackID); }
-
-    /** 监听Report视图数据项UI元素填充事件（虚表，填充某行某列数据）
-     * @param [in] callback 要绑定的回调函数
-     * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
-     * 参数说明:
-     *   wParam: 关联的UI容器子项索引号，有效范围：[0, GetItemCount())，如果值为Box::InvalidIndex，表示未关联任何子项
-     *   lParam: 关联的UI容器子项索引号对应的数据项索引号，有效范围：[0, GetDataItemCount())，如果值为Box::InvalidIndex，表示无关联的数据项
-     *   pEventData: 关联的UI容器子项的界面控件接口指针，类型为：ListCtrlSubItem*指针，代表某行某列数据的UI元素控件
-     *               通过该接口，可以获取数据项索引号、哪一列的数据
-     */
-    void AttachReportViewSubItemFilled(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventReportViewSubItemFilled, callback, callbackID); }
 
     /** 监听List视图数据项UI元素填充事件（虚表）
      * @param [in] callback 要绑定的回调函数
@@ -1036,6 +1311,60 @@ public:
      *   pEventData: 当前列表视图的指针：ListCtrlReportView*, ListCtrlIconView*, ListCtrlListView*
      */
     void AttachViewSizeChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventViewSizeChanged, callback, callbackID); }
+
+    /** 监听列宽变化事件（拖动列表头调整列宽，或者调用SetColumnWidth等接口时触发）
+     * @param [in] callback 要绑定的回调函数
+     * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+     * 参数说明:
+     *   wParam: 列ID(size_t)
+     *   lParam: 关联的另一个列ID(size_t)，如果是拖动调整列宽，可能是相邻列；如果为Box::InvalidIndex表示无关联列
+     */
+    void AttachColumnWidthChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventColumnWidthChanged, callback, callbackID); }
+
+    /** 监听列顺序变化事件（拖动列表头调整列的顺序时触发）
+     * @param [in] callback 要绑定的回调函数
+     * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+     * 参数说明:
+     *   wParam/lParam: 未使用，可通过GetColumnId等接口获取最新的列顺序
+     */
+    void AttachColumnOrderChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventColumnOrderChanged, callback, callbackID); }
+
+    /** 监听列显示/隐藏状态变化事件
+     * @param [in] callback 要绑定的回调函数
+     * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+     * 参数说明:
+     *   wParam: 列ID(size_t)
+     *   lParam: 新状态(1表示显示，0表示隐藏)
+     */
+    void AttachColumnVisibleChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventColumnVisibleChanged, callback, callbackID); }
+
+    /** 监听列排序变化事件（点击列表头排序，或者调用SortDataItems等接口时触发）
+     * @param [in] callback 要绑定的回调函数
+     * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+     * 参数说明:
+     *   wParam: 列ID(size_t)
+     *   lParam: 新状态(1表示升序，0表示降序)
+     */
+    void AttachColumnSorted(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventColumnSorted, callback, callbackID); }
+
+    /** 绑定当前单元格发生变化的事件（单元格选择模式）
+    * @param [in] callback 要绑定的回调函数
+    * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+    * 参数说明:
+    *   wParam: 行的显示索引(size_t)
+    *   lParam: 列ID(size_t)
+    */
+    void AttachCurrentCellChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventCurrentCellChanged, callback, callbackID); }
+
+    /** 绑定单元格选择区域发生变化的事件（单元格选择模式）
+    * @param [in] callback 要绑定的回调函数
+    * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+    * 参数说明:
+    *   wParam: 选中区域个数(size_t)，0表示当前无选择
+    *   lParam: 0（保留）
+    *   pEventData: 指向 std::vector<ui::ListCtrlCellRange>*（选中的区域列表，可能多项；无选择时为nullptr）
+    */
+    void AttachCellSelectionChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventCellSelectionChanged, callback, callbackID); }
 
 protected:
     /** 控件初始化
@@ -1138,6 +1467,11 @@ protected:
     void SetRichEditClass(const DString& richEditClass);
     DString GetRichEditClass() const;
 
+    /** 日期编辑框的Class属性（kEditDate 编辑器使用的 DateTime 控件）
+    */
+    void SetDateTimeClass(const DString& dateTimeClass);
+    DString GetDateTimeClass() const;
+
 protected:
     /** 增加一列
     * @param [in] nColumnId 列的ID
@@ -1177,8 +1511,9 @@ protected:
     void OnHeaderCheckStateChanged(bool bChecked);
 
     /** 表头列的显示属性发生变化
+    * @param [in] nColumnId 列的ID
     */
-    void OnHeaderColumnVisibleChanged();
+    void OnHeaderColumnVisibleChanged(size_t nColumnId);
 
     /** 列表头列的分割条双击事件
     * @param [in] pHeaderItem 列表头控件接口
@@ -1228,9 +1563,54 @@ private:
     */
     void UpdateRichEditSize(ListCtrlLabel* pSubItem);
 
-    /** 子项编辑事件
+    /** 更新DateTime控件的位置和大小（kEditDate 编辑器）
     */
-    void OnItemEdited(const ListCtrlEditParam& editParam, const DString& newItemText);
+    void UpdateDateTimeSize(ListCtrlLabel* pSubItem);
+
+    /** 子项编辑事件
+    * @return 返回 true 表示已写回数据（用户未取消、且输入通过编辑器类型校验）
+    */
+    bool OnItemEdited(const ListCtrlEditParam& editParam, const DString& newItemText);
+
+    /** 获取指定显示索引号对应的数据行控件（Report 视图；仅"当前可视"的行，滚动复用后不可缓存）
+    * @param [in] nItemIndex 行的显示索引号
+    * @return 返回数据行控件（不可视时返回nullptr）
+    */
+    ListCtrlItem* GetDisplayItemByIndex(size_t nItemIndex) const;
+
+    /** 判断编辑器输入的文本是否符合列声明的编辑器类型（空串一律视为有效，表示清空单元格）
+    */
+    static bool IsValidCellEditText(const DString& strNewText, ListCtrlEditorType editorType);
+
+    /** 进入下拉候选编辑状态（kEditCombo 编辑器）：在单元格下方弹出候选浮层
+    * @param [in] editParam 编辑参数（进入编辑时创建）
+    * @param [in] pSubItem 命中单元格的文本控件（作为浮层锚点）
+    */
+    void EnterComboEditMode(const ListCtrlEditParam& editParam, ListCtrlLabel* pSubItem);
+
+    /** 进入日期编辑状态（kEditDate 编辑器）：在单元格上浮出 DateTime 控件，聚焦后弹出月日历
+    * @param [in] editParam 编辑参数（进入编辑时创建）
+    * @param [in] pSubItem 命中单元格的文本控件
+    */
+    void EnterDateEditMode(const ListCtrlEditParam& editParam, ListCtrlLabel* pSubItem);
+
+    /** 下拉候选编辑：候选项被选中（鼠标点选/键盘回车）后提交
+    * @param [in] nIndex 候选项序号
+    * @return 返回 true 表示已提交写回
+    */
+    bool OnComboCandidateSelected(size_t nIndex);
+
+    /** 关闭下拉候选浮层（未打开时为空操作）
+    */
+    void CloseComboFlyout();
+
+    /** 判断下拉候选浮层是否处于打开状态
+    */
+    bool IsComboEditOpened() const;
+
+    /** 提交成功后，把当前格下移一行（kCell 模式；已在最后一行则不移动）
+    */
+    void MoveCurrentCellToNextRow();
 
     /** 视图接收到鼠标消息
     */
@@ -1253,6 +1633,85 @@ private:
     * @param [in] bInit true表示初始化阶段调用
     */
     void DoSetListCtrlType(ListCtrlType type, bool bInit);
+
+    /** 单元格选择模式：收集当前选中的单元格区域列表（可能多项，用于事件上报）
+        归并规则：同一显示行内按"列索引连续"合并为横向区段，纵向相邻行的相同区段再合并为矩形
+    * @param [out] rangeList 返回选中区域列表（无选择时为空）
+    */
+    void GetSelectedCellRanges(std::vector<ListCtrlCellRange>& rangeList) const;
+
+    /** 生成选中内容（或整表）的文本
+    * @param [in] bCsvFormat true 表示 CSV 格式（符合 RFC4180），false 表示 TSV 格式（制表符分隔）
+    * @param [in] bSelectedOnly true 表示仅导出当前选中内容，false 表示导出整表（仅 CSV 导出路径使用）
+    * @return 返回生成的文本（无内容时返回空串）
+    */
+    DString BuildSelectionText(bool bCsvFormat, bool bSelectedOnly) const;
+
+    /** 转义单个字段的内容
+    * @param [in] strText 原始字段文本
+    * @param [in] bCsvFormat true 表示 CSV 格式（按需加双引号，并翻倍内部双引号）；
+    *                         false 表示 TSV 格式（把制表符/回车/换行替换为空格）
+    * @return 返回转义后的文本
+    */
+    static DString EscapeText(const DString& strText, bool bCsvFormat);
+
+    /** 单元格选择模式：派发"当前单元格发生变化"事件
+    */
+    void NotifyCurrentCellChanged(const ListCtrlCellId& cell);
+
+    /** 单元格选择模式：派发"选择区域发生变化"事件
+    */
+    void NotifyCellSelectionChanged();
+
+    /** 单元格选择模式：刷新视图显示（重绘单元格高亮与当前格焦点框）
+    */
+    void RefreshCellSelectionView();
+
+    /** 单元格选择模式：更新鼠标悬停的单元格（用于绘制单元格悬停高亮）
+    * @param [in] nRowIndex 行的显示索引号（未命中单元格时为 Box::InvalidIndex）
+    * @param [in] nColumnId 列的ID（未命中单元格时为 Box::InvalidIndex）
+    */
+    void UpdateHoverCell(size_t nRowIndex, size_t nColumnId);
+
+    /** 单元格选择模式：清除鼠标悬停的单元格（鼠标移出控件时调用，避免悬停高亮残留）
+    */
+    void ClearHoverCell();
+
+    /** 单元格选择模式：判断指定单元格是否为鼠标悬停的单元格
+    * @param [in] nRowIndex 行的显示索引号
+    * @param [in] nColumnId 列的ID
+    */
+    bool IsCellHovered(size_t nRowIndex, size_t nColumnId) const;
+
+    /** 单元格选择模式：处理来自 ListCtrlItem 的鼠标事件（设置/扩展单元格选择）
+    * @param [in] msg 鼠标事件消息
+    * @param [in] nRowIndex 行的显示索引号
+    * @param [in] nColumnId 列的ID（未命中单元格时为 Box::InvalidIndex）
+    * @return 返回是否已处理（true表示已按单元格选择处理，调用方不应再做行选择）
+    */
+    bool OnCellMouseEvent(const EventArgs& msg, size_t nRowIndex, size_t nColumnId);
+
+    /** 单元格选择模式：鼠标按下时开始一次拖动框选（左键/右键共用）
+        普通单击选中单元格（清除其它）；Shift 扩展到点击格；Ctrl 切换选中；Ctrl+Shift 追加扩展；
+        未命中单元格（空白区域）则清空单元格选择；结束后置位拖动框选状态（框选矩形驱动后续选择）
+    * @param [in] msg 鼠标按下事件消息
+    * @param [in] nRowIndex 行的显示索引号（未命中单元格时为 Box::InvalidIndex）
+    * @param [in] nColumnId 列的ID（未命中单元格时为 Box::InvalidIndex）
+    */
+    void BeginCellDrag(const EventArgs& msg, size_t nRowIndex, size_t nColumnId);
+
+    /** 单元格选择模式：处理键盘事件（方向键移动当前格、Shift扩展区域、Ctrl+A全选等）
+    * @param [in] msg 键盘事件消息
+    * @return 返回是否已处理
+    */
+    bool OnCellKeyDown(const EventArgs& msg);
+
+    /** 处理下拉候选浮层的键盘事件（行选择模式与单元格选择模式通用）
+    *  浮层处于打开状态时：上/下方向键移动候选项、回车提交、Esc取消（均消费按键）
+    * @param [in] msg 键盘事件消息
+    * @return 返回是否已处理（浮层未打开时返回false，按键继续按常规流程处理）
+    */
+    bool OnComboKeyDown(const EventArgs& msg);
 
 private:
     /** 表头控件
@@ -1343,6 +1802,16 @@ private:
     */
     UiString m_listCtrlRichEditClass;
 
+    /** ListCtrl的日期编辑框Class属性（kEditDate 编辑器）
+    */
+    UiString m_listCtrlDateTimeClass;
+
+    /** 富文本编辑框类中声明的字符白名单（limit_chars）
+    *  说明：编辑框控件会被复用，数值编辑器进入编辑时会临时改写白名单；
+    *  为避免抹掉控件类上声明的白名单配置，首次创建编辑框时记录该值，切换回非数值编辑器时恢复。
+    */
+    DString m_richEditLimitChars;
+
     /** 图片列表
     */
     ImageListPtr m_imageList[3];
@@ -1350,6 +1819,10 @@ private:
     /** 编辑框控件
     */
     RichEdit* m_pRichEdit;
+
+    /** 日期编辑框控件（kEditDate 编辑器）
+    */
+    DateTime* m_pDateTime;
 
     /** 表头的高度
     */
@@ -1379,6 +1852,10 @@ private:
     */
     bool m_bEnableHeaderDragOrder;
 
+    /** 冻结列的个数（固定列表左侧的前N列，不随横向滚动而移动）
+    */
+    size_t m_nFrozenColumnCount;
+
     /** 是否显示表头控件
     */
     bool m_bShowHeaderCtrl;
@@ -1390,6 +1867,40 @@ private:
     /** 是否支持多选(默认是单选)
     */
     bool m_bMultiSelect;
+
+    /** 选择模式（默认是行选择模式）
+    */
+    ListCtrlSelectionMode m_selectionMode;
+
+    /** 单元格选择模式下是否正在通过鼠标拖动扩展选择区域
+    */
+    bool m_bCellDragSelecting;
+
+    /** 单元格选择模式下本次拖动是否为"追加"模式（Ctrl+拖动：追加矩形区域，不清除已有选择）
+    */
+    bool m_bCellDragAdditive;
+
+    /** 单元格悬停状态的内部标识：按行身份(RowId)存储，与显示顺序解耦
+        （排序/增删行后，悬停高亮仍跟随原数据行，配合列ID定位唯一单元格）
+    */
+    struct HoverCellId
+    {
+        ListCtrlData::RowId nRowId;     //行身份（无效时为 ListCtrlData::kInvalidRowId）
+        size_t nColumnId;               //列ID（无效时为 Box::InvalidIndex）
+
+        HoverCellId() : nRowId(ListCtrlData::kInvalidRowId), nColumnId(Box::InvalidIndex) {}
+
+        /** 判断是否为有效的单元格
+        */
+        bool IsValid() const { return (nRowId != ListCtrlData::kInvalidRowId) && (nColumnId != Box::InvalidIndex); }
+
+        bool operator==(const HoverCellId& r) const { return (nRowId == r.nRowId) && (nColumnId == r.nColumnId); }
+        bool operator!=(const HoverCellId& r) const { return !(*this == r); }
+    };
+
+    /** 单元格选择模式下鼠标悬停的单元格（用于绘制单元格悬停高亮）
+    */
+    HoverCellId m_hoverCell;
 
     /** 是否支持双击Header的分割条自动调整列宽
     */
@@ -1407,9 +1918,33 @@ private:
     */
     bool m_bDataItemShowCheckBox;
 
+    /** 是否支持复制选中内容到剪贴板（默认 true）
+    */
+    bool m_bEnableCopy;
+
+    /** 是否支持 CSV 导出（默认 true）
+    */
+    bool m_bEnableCsvExport;
+
     /** 是否支持子项编辑
     */
     bool m_bEnableItemEdit;
+
+    /** 列ID -> 编辑器类型（按列ID保存，列序变化不影响）
+    */
+    std::map<size_t, ListCtrlEditorType> m_columnEditorTypes;
+
+    /** 正在编辑的单元格（仅 kCell 模式成立；非编辑态时为无效值）
+    */
+    ListCtrlCellId m_editingCell;
+
+    /** 列ID -> 候选值列表（按列ID保存，供 kEditCombo 编辑器使用）
+    */
+    std::map<size_t, std::vector<DString>> m_columnCandidates;
+
+    /** 当前候选浮层（kEditCombo 编辑器；关闭后由框架自动销毁，指针同时置空）
+    */
+    ListCtrlComboFlyout* m_pComboFlyout;
 };
 
 }//namespace ui

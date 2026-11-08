@@ -86,10 +86,10 @@ size_t ListCtrlItem::GetSubItemCount() const
     return GetItemCount();
 }
 
-ListCtrlSubItem* ListCtrlItem::GetSubItem(size_t columnIndex) const
+ListCtrlSubItem* ListCtrlItem::GetSubItem(size_t nSubItemIndex) const
 {
-    ASSERT(columnIndex < GetSubItemCount());
-    ListCtrlSubItem* pSubItem = dynamic_cast<ListCtrlSubItem*>(GetItemAt(columnIndex));
+    ASSERT(nSubItemIndex < GetSubItemCount());
+    ListCtrlSubItem* pSubItem = dynamic_cast<ListCtrlSubItem*>(GetItemAt(nSubItemIndex));
     ASSERT(pSubItem != nullptr);
     return pSubItem;
 }
@@ -152,6 +152,54 @@ bool ListCtrlItem::ButtonUp(const EventArgs& msg)
     else {
         return BaseClass::ButtonUp(msg);
     }
+}
+
+UiPoint ListCtrlItem::GetCheckBoxMousePos(const UiPoint& ptMouse) const
+{
+    UiPoint pt(ptMouse);
+    pt.Offset(GetScrollOffsetInScrollBox());
+    //行首的CheckBox和图标固定显示在行的最左侧，位于冻结列区域内（不随横向滚动移动）：
+    //存在冻结列时，横向的滚动量按0计，使点击判定与冻结列的显示位置保持一致
+    if ((m_pListCtrl != nullptr) && (m_pListCtrl->GetFrozenColumnCount() > 0) && IsShowCheckBox()) {
+        pt.x = ptMouse.x;
+    }
+    return pt;
+}
+
+bool ListCtrlItem::ButtonDown(const EventArgs& msg)
+{
+    if ((m_pListCtrl != nullptr) &&
+        (m_pListCtrl->GetSelectionMode() == ListCtrlSelectionMode::kCell)) {
+        //单元格选择模式下，跳过行选择逻辑（SelectItem），避免与单元格选择冲突
+        return HBox::ButtonDown(msg);
+    }
+    else {
+        return BaseClass::ButtonDown(msg);
+    }
+}
+
+bool ListCtrlItem::MouseEnter(const EventArgs& msg)
+{
+    if ((m_pListCtrl != nullptr) && (m_pListCtrl->GetSelectionMode() == ListCtrlSelectionMode::kCell)) {
+        //单元格选择模式下，行级悬停高亮（含 hovered 渐隐/渐显动画）属于行选择模式专属视觉：
+        //此处不执行基类逻辑（不置 Hovered 状态、不启动悬停动画），但仍返回 false 让事件继续冒泡给父视图，
+        //保证视图（ScrollBox）能收到 MouseEnter 并淡入自动隐藏的滚动条
+        return false;
+    }
+    return BaseClass::MouseEnter(msg);
+}
+
+bool ListCtrlItem::MouseLeave(const EventArgs& msg)
+{
+    if ((m_pListCtrl != nullptr) && (m_pListCtrl->GetSelectionMode() == ListCtrlSelectionMode::kCell)) {
+        //单元格选择模式下，不执行基类逻辑（否则会启动 hovered 渐隐动画，使整行悬停色"闪现"一下）；
+        //仅清除可能由 SetFocus()（Control::OnSetFocus 会把状态置为 Hovered）残留的行级悬停状态
+        if (GetState() == kControlStateHovered) {
+            SetState(kControlStateNormal);
+        }
+        return false;
+    }
+    return BaseClass::MouseLeave(msg);
 }
 
 bool ListCtrlItem::SupportCheckMode() const
@@ -254,6 +302,18 @@ void ListCtrlItem::Paint(IRender* pRender, const UiRect& rcPaint)
         VAlignRect(rc, TEXT_VCENTER, imageSize.cy);
         PaintImage(pRender, pItemImage.get(), _T(""), -1, nullptr, &rc, nullptr);
     }
+}
+
+void ListCtrlItem::PaintStateColors(IRender* pRender)
+{
+    //单元格选择模式下，行级悬停(Enter)/按下(Pressed)产生的高亮背景属于行选择模式专属视觉，这里直接屏蔽不绘制；
+    //其它状态（普通、选中、禁用等）以及行选择模式下的行为保持不变
+    if ((m_pListCtrl != nullptr) &&
+        (m_pListCtrl->GetSelectionMode() == ListCtrlSelectionMode::kCell) &&
+        ((GetState() == kControlStateHovered) || (GetState() == kControlStatePressed))) {
+        return;
+    }
+    BaseClass::PaintStateColors(pRender);
 }
 
 ImagePtr ListCtrlItem::LoadItemImage() const

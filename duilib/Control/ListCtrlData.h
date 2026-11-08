@@ -4,22 +4,53 @@
 #include "duilib/Box/VirtualListBox.h"
 #include "duilib/Control/ListCtrlDefs.h"
 #include <unordered_map>
+#include <array>
+#include <memory>
 
 namespace ui
 {
 /** 列表项的数据管理器
 */
 class ListCtrl;
+class ListCtrlReportView;
 struct ListCtrlSubItemData;
 class DUILIB_API ListCtrlData : public ui::VirtualListBoxElement
 {
+    friend class ListCtrlReportView; //列表数据显示UI控件(Report视图)：需要访问单元格的数据存储，以支持单格刷新
+    friend class ListCtrl;           //ListCtrl控件：需要按显示索引换算行身份(RowId)，用于单元格悬停状态与显示顺序解耦
 public:
     //用于存储的数据结构
     typedef ListCtrlSubItemData2 Storage;
-    typedef std::shared_ptr<Storage> StoragePtr;
-    typedef std::vector<StoragePtr> StoragePtrList;
-    typedef std::unordered_map<size_t, StoragePtrList> StorageMap;
-    typedef std::vector<ListCtrlItemData> RowDataList;
+    typedef std::vector<ListCtrlItemData> RowDataList;      //行属性池：按行身份(RowId)索引
+
+    /** 行身份：行的唯一标识，单调递增、删除后不复用
+        用于把"行的身份"与"行的物理位置"解耦：增删改只重排显示顺序表，数据本体不搬移
+    */
+    typedef uint32_t RowId;
+
+    /** 无效的行身份
+    */
+    static constexpr RowId kInvalidRowId = static_cast<RowId>(0xFFFFFFFF);
+
+    /** 每页的单元格数量（分页连续存储）
+        页索引 = RowId / kPageCells，页内偏移 = RowId % kPageCells
+    */
+    static constexpr size_t kPageCells = 64;
+
+    /** 存储页：页内单元格连续存放，附带"已写入"标记
+        优势：页内数组连续（绘制/排序扫描缓存友好，无shared_ptr指针追逐）；
+              页为懒分配（某页首次写入时才创建），稀疏/纯虚表场景内存不膨胀
+    */
+    struct StoragePage
+    {
+        std::array<Storage, kPageCells> cells;  //页内单元格数组（连续）
+        uint8_t usedMask[kPageCells] = {};      //每个单元格是否已写入（1表示已写入）
+    };
+
+    /** 每列的存储页列表（按页索引存放；页为懒分配，列表中允许出现空指针）
+    */
+    typedef std::vector<std::unique_ptr<StoragePage>> StoragePageList;
+    typedef std::unordered_map<size_t, StoragePageList> StorageMap;
 
 public:
     ListCtrlData();
@@ -149,6 +180,20 @@ public:
     * @return 如果有数据被删除返回true，否则返回false
     */
     bool DeleteAllDataItems();
+
+    /** 批量删除指定行的数据项, 并刷新界面显示
+        内部实现：先按行身份去重并标记墓碑，再对显示顺序表做单趟压缩，避免逐行删除的 O(K×N) 搬移
+    * @param [in] displayIndexs 需要删除的数据项显示索引号列表，有效范围：[0, GetDataItemCount())；
+    *                            重复索引会被忽略，越界索引会被忽略
+    * @return 返回实际删除的行数
+    */
+    size_t DeleteDataItems(const std::vector<size_t>& displayIndexs);
+
+    /** 压缩数据存储：整理行身份与存储页布局，回收已删除行占用的内存
+        说明：这是一次显式的整表维护操作（重编号 + 全量压缩），仅在无填充/绘制进行时调用；
+              调用后所有已发出的内部单元格指针（原始指针）均失效
+    */
+    void CompactStorage();
 
     /** 设置数据项的行属性数据, 并刷新界面显示
     * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
@@ -388,6 +433,22 @@ public:
     */
     int32_t GetSubItemTextFormat(size_t itemIndex, size_t columnId) const;
 
+    /** 设置指定数据项的文本是否为单行显示，并刷新界面显示
+        说明：设置为多行(false)后，文本超出单元格宽度时会自动换行；
+              行高需由调用方通过 SetDataItemHeight 调整，否则超出部分会被裁剪
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID
+    * @param [in] bSingleLine true表示单行显示（超出时按省略号裁剪），false表示多行显示（自动换行）
+    */
+    bool SetSubItemSingleLine(size_t itemIndex, size_t columnId, bool bSingleLine);
+
+    /** 获取指定数据项的文本是否为单行显示
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID
+    * @return true表示单行显示，false表示多行显示（自动换行）
+    */
+    bool IsSubItemSingleLine(size_t itemIndex, size_t columnId) const;
+
     /** 设置指定数据项的背景颜色，并刷新界面显示
     * @param [in] itemIndex 数据项的索引号
     * @param [in] columnId 列的ID
@@ -463,6 +524,33 @@ public:
     */
     bool IsSubItemEditable(size_t itemIndex, size_t columnId) const;
 
+    /** 设置该列以进度条方式显示，并刷新界面显示
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID
+    * @param [in] nProgress 进度值，有效范围[0, 100]，-1表示不显示进度条（按普通文本显示）
+    */
+    bool SetSubItemProgress(size_t itemIndex, size_t columnId, int32_t nProgress);
+
+    /** 获取该列的进度值
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID
+    * @return 返回进度值，有效范围[0, 100]，-1表示不显示进度条（按普通文本显示）
+    */
+    int32_t GetSubItemProgress(size_t itemIndex, size_t columnId) const;
+
+    /** 设置该列的文本是否按富文本（类HTML格式）渲染，并刷新界面显示
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID
+    * @param [in] bRichText true表示按富文本渲染，false表示按普通文本渲染
+    */
+    bool SetSubItemRichText(size_t itemIndex, size_t columnId, bool bRichText);
+
+    /** 获取该列的文本是否按富文本（类HTML格式）渲染
+    * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] columnId 列的ID
+    */
+    bool IsSubItemRichText(size_t itemIndex, size_t columnId) const;
+
     /** 对数据排序，并刷新界面显示
     * @param [in] columnId 列的ID
     * @param [in] nColumnIndex 列的序号
@@ -470,6 +558,7 @@ public:
     * @param [in] nSortFlag 排序方法标志位，参见 ListCtrlSubItemSortFlag 的枚举值
     * @param [in] pfnCompareFunc 数据比较函数
     * @param [in] pUserData 用户自定义数据，调用比较函数的时候，通过参数传回给比较函数
+    * 说明：稳定排序（同值元素保持原始相对顺序），升序/降序均保持该特性
     */
     bool SortDataItems(size_t nColumnId, size_t nColumnIndex,
                        bool bSortedUp, uint8_t nSortFlag,
@@ -539,16 +628,29 @@ private:
     /** 获取指定数据项的数据, 读取
     * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
     * @param [in] columnId 列的ID
-    * @return 如果失败则返回nullptr
+    * @return 如果失败或者该单元格无数据则返回nullptr
     */
-    StoragePtr GetSubItemStorage(size_t itemIndex, size_t nColumnId) const;
+    const Storage* GetSubItemStorage(size_t itemIndex, size_t nColumnId) const;
 
-    /** 获取指定数据项的数据, 写入
+    /** 获取指定数据项的数据, 写入（必要时分配存储页）
     * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
     * @param [in] columnId 列的ID
     * @return 如果失败则返回nullptr
     */
-    StoragePtr GetSubItemStorageForWrite(size_t itemIndex, size_t nColumnId);
+    Storage* GetSubItemStorageForWrite(size_t itemIndex, size_t nColumnId);
+
+    /** 按行身份读取某列的单元格（只读）；该单元格未写入时返回nullptr
+    */
+    static const Storage* GetStorageAt(const StoragePageList& pageList, RowId rowId);
+
+    /** 按行身份获取某列可写的单元格；必要时分配存储页并标记为已写入
+    */
+    static Storage* GetStorageAtForWrite(StoragePageList& pageList, RowId rowId);
+
+    /** 将某列某行身份的单元格置为墓碑（清空数据并标记为未写入）；不分配存储页，
+        并在该页已全部为墓碑时释放整页（页回收）
+    */
+    static void ResetStorageAt(StoragePageList& pageList, RowId rowId);
 
     /** 获取各个列的数据，用于UI展示
     * @param [in] itemIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
@@ -556,22 +658,117 @@ private:
     */
     bool GetSubItemStorageList(size_t itemIndex, std::vector<ListCtrlSubItemData2Pair>& subItemList) const;
 
-public:
-    /** 获取行属性数据
+    /** 显示索引 → 行身份；索引无效时返回 kInvalidRowId
     */
-    const RowDataList& GetItemDataList() const;
+    RowId GetRowIdByDisplayIndex(size_t itemIndex) const;
+
+    /** 行身份 → 显示索引；未找到时返回 Box::InvalidIndex
+    */
+    size_t GetDisplayIndexByRowId(RowId rowId) const;
+
+    /** 分配一个新的行身份，并让各列数据池与行属性池增长到该位置
+    * @return 返回新分配的行身份
+    */
+    RowId AllocRowId();
+
+    /** 释放一个行身份关联的数据（列池置墓碑、行属性重置），并修正计数与单选状态
+    */
+    void FreeRowId(RowId rowId);
+
+    /** 单元格选择：查找某列的选中位图（不存在时返回nullptr）
+    */
+    const std::vector<uint8_t>* FindCellBitmap(size_t nColumnId) const;
+
+    /** 单元格选择：查找（必要时创建）某列的选中位图，并保证容量可容纳 rowId
+    */
+    std::vector<uint8_t>& GetCellBitmapForWrite(size_t nColumnId, RowId rowId);
+
+    /** 单元格选择：按行身份设置单个单元格的选中状态
+    */
+    void SetCellSelectedByRowId(RowId rowId, size_t nColumnId, bool bSelected);
+
+    /** 单元格选择：按行身份判断单个单元格是否被选中
+    */
+    bool IsCellSelectedByRowId(RowId rowId, size_t nColumnId) const;
+
+    /** 检查内部数据的一致性（仅在Debug编译下进行断言检查）
+    */
+    void AssertDataConsistency() const;
+
+public:
+    /** 获取指定显示位置的数据项行属性（按显示顺序访问）
+    * @param [in] itemIndex 数据项的显示索引号, 有效范围：[0, GetDataItemCount())
+    * @return 返回行属性数据的指针，索引无效时返回nullptr；该指针在下次数据变更前有效
+    */
+    const ListCtrlItemData* GetDisplayItemData(size_t itemIndex) const;
 
     /** 是否为标准模式（行高都为默认行高，无隐藏行，无置顶行）
     */
     bool IsNormalMode() const;
+
+public:
+    /** 获取当前单元格（单元格选择模式下的当前格，未设置时返回无效值）
+        返回的行索引为当前的显示索引号（内部按行身份存储，排序/增删后自动跟随数据行）
+    */
+    ListCtrlCellId GetCurrentCell() const;
+
+    /** 获取锚点单元格（区域选择的起点，未设置时返回无效值）
+    */
+    ListCtrlCellId GetAnchorCell() const;
+
+    /** 设置当前单元格（仅更新当前格，不改变选中集合）
+    * @param [in] cell 单元格标识（行显示索引 + 列ID）
+    * @return 返回是否设置成功（行索引或列ID无效时返回false，不做任何修改）
+    */
+    bool SetCurrentCell(const ListCtrlCellId& cell);
+
+    /** 设置锚点单元格（仅更新锚点，不改变选中集合）
+    * @param [in] cell 单元格标识（行显示索引 + 列ID）
+    * @return 返回是否设置成功（行索引或列ID无效时返回false，不做任何修改）
+    */
+    bool SetAnchorCell(const ListCtrlCellId& cell);
+
+    /** 获取单元格的选择区域（锚点 + 当前格，未做规范化；用于查询与事件上报）
+    */
+    void GetCellSelection(ListCtrlCellId& anchorCell, ListCtrlCellId& focusCell) const;
+
+    /** 判断单个单元格是否被选中（O(1)，按行身份判定，与显示顺序解耦）
+    * @param [in] nRowIndex 行的显示索引号
+    * @param [in] nColumnId 列ID
+    */
+    bool IsCellSelected(size_t nRowIndex, size_t nColumnId) const;
+
+    /** 设置单个单元格的选中状态（不清除其它已选中的单元格）
+    * @return 返回选中状态是否发生变化（行无效/行不可选/状态未变化时返回 false）
+    */
+    bool SetCellSelected(size_t nRowIndex, size_t nColumnId, bool bSelected);
+
+    /** 对"显示行区间 × 指定列集合"做区域选择
+    * @param [in] nRowBegin/nRowEnd 显示索引区间（已规范化，begin<=end）；无效值表示不改变行
+    * @param [in] columnIdList 参与选择的列ID列表（顺序无关）
+    * @param [in] bAdditive true=追加到已有选择；false=先清除全部单元格选择再设置
+    */
+    void SetCellSelectionRect(size_t nRowBegin, size_t nRowEnd,
+                              const std::vector<size_t>& columnIdList, bool bAdditive);
+
+    /** 全选所有单元格
+    * @param [in] columnIdList 参与选择的列ID列表
+    */
+    void SelectAllCells(const std::vector<size_t>& columnIdList);
+
+    /** 清除所有单元格选择（选中集合、锚点、当前格一并清空）
+    * @return 清除前是否存在实际的选择状态（有选中单元格或存在当前格）；
+    *         返回 false 表示本来就没有选择，调用方无需刷新界面或派发选择变化事件
+    */
+    bool ClearCellSelection();
 
 private:
     /** 排序数据
     */
     struct StorageData
     {
-        size_t index;       //原来的数据索引号
-        StoragePtr pStorage;
+        size_t index;             //原来的数据索引号
+        const Storage* pStorage;  //该行在排序列的单元格（可能为nullptr）
     };
 
     /** 对数据排序
@@ -582,6 +779,8 @@ private:
     * @param [in] nSortFlag 排序方法标志位，参见 ListCtrlSubItemSortFlag 的枚举值
     * @param [in] pfnCompareFunc 数据比较函数
     * @param [in] pUserData 用户自定义数据，调用比较函数的时候，通过参数传回给比较函数
+    * 说明：稳定排序（同值元素保持原始相对顺序）；降序通过转置比较实现，
+    *       而非"升序排完再整体反转"（那会颠倒同值元素的相对顺序）
     */
     bool SortStorageData(std::vector<StorageData>& dataList, size_t nColumnId, size_t nColumnIndex,
                          bool bSortedUp, uint8_t nSortFlag,
@@ -608,13 +807,30 @@ private:
     */
     bool m_bAutoCheckSelect;
 
-    /** 数据，按列保存，每个列一个数组
+    /** 数据，按列保存，每列一份分页连续存储
+        按页索引存放（页 = RowId / kPageCells），页内按行身份偏移索引；页为懒分配，
+        删除某行时仅把该单元格标记为未写入（墓碑），数据本体不搬移；
+        整页全部变为墓碑时释放该页（页回收），长时间高频增删后可调用 CompactStorage 做整体压缩
     */
     StorageMap m_dataMap;
 
-    /** 行的属性数据
+    /** 行的属性数据，按行身份(RowId)索引（删除某行时该槽位重置为默认值墓碑）
     */
     RowDataList m_rowDataList;
+
+    /** 显示顺序表：m_displayOrder[i] 表示当前第i个显示位置对应的行身份
+        是唯一随增/删/改/排序变动的结构（每个元素仅4字节），数据本体不随之搬移
+    */
+    std::vector<RowId> m_displayOrder;
+
+    /** 下一个可分配的行身份（单调递增，删除后不复用）
+    */
+    RowId m_nextRowId;
+
+    /** 填充元素时复用的缓冲区，避免每次填充行数据都重新分配临时容器
+        （仅在 FillElement 同步调用期间使用，不跨调用持有状态）
+    */
+    std::vector<ListCtrlSubItemData2Pair> m_subItemListBuffer;
 
     /** 外部设置的排序函数
     */
@@ -640,9 +856,9 @@ private:
     */
     bool m_bMultiSelect;
 
-    /** 单选的时候，选择的元素索引号
+    /** 单选的时候，选中的元素行身份（无效时为 kInvalidRowId）
     */
-    size_t m_nSelectedIndex;
+    RowId m_nSelectedRowId;
 
     /** 当前默认的文本属性
     */
@@ -651,6 +867,30 @@ private:
     /** 当前默认的行高
     */
     int32_t m_nDefaultItemHeight;
+
+    /** 单元格身份：行身份(RowId) + 列ID
+        与显示顺序解耦，行被排序/增删后仍指向同一数据行
+    */
+    struct CellIdentity
+    {
+        RowId nRowId = kInvalidRowId;
+        size_t nColumnId = Box::InvalidIndex;
+        bool IsValid() const { return (nRowId != kInvalidRowId) && (nColumnId != Box::InvalidIndex); }
+    };
+
+    /** 单元格选择模式下的锚点单元格（拖拽/区域选择的起点）
+    */
+    CellIdentity m_anchorCell;
+
+    /** 单元格选择模式下的当前单元格（区域焦点）
+    */
+    CellIdentity m_currentCell;
+
+    /** 单元格选中集合：每列一张位图（key=列ID，value=按行身份RowId索引的位图，1表示选中）
+        独立于分页懒分配的单元格存储：全选/选中未实化行不会强制分配单元格实体，
+        内存为"列数 × 行数 / 8 字节"；按行身份索引，排序/增删后选择跟随原数据行
+    */
+    std::unordered_map<size_t, std::vector<uint8_t>> m_cellSelected;
 };
 
 }//namespace ui

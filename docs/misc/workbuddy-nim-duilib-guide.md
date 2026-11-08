@@ -376,8 +376,8 @@ int APIENTRY wWinMain(_In_ HINSTANCE, _In_opt_ HINSTANCE, _In_ LPWSTR, _In_ int)
 
 **⑥ 工程文件 `CMakeLists.txt`**
 
-四件套之一，关键是 `DUILIB_SKIA_LIB_SUBPATH` 的默认值必须写在 `include(duilib_common.cmake)` 之前
-（原因见第六节）：
+四件套之一，只需要两行 include。`DUILIB_SKIA_LIB_SUBPATH` 的默认值已下沉到
+`duilib_common.cmake` 内部计算，工程里**不必再设置**：
 
 ```cmake
 cmake_minimum_required(VERSION 3.18)
@@ -386,22 +386,17 @@ set(CMAKE_POLICY_DEFAULT_CMP0091 NEW)
 project(hello_button CXX)                      # 需与 examples/ 下的目录名一致
 
 get_filename_component(DUILIB_SRC_ROOT_DIR "${CMAKE_CURRENT_LIST_DIR}/../../" ABSOLUTE)
+get_filename_component(DUILIB_PROJECT_SRC_DIR "${CMAKE_CURRENT_LIST_DIR}/" ABSOLUTE)
 
-if(WIN32 AND NOT DEFINED DUILIB_SKIA_LIB_SUBPATH)
-    set(CPU_ARCH "x64")
-    if(CMAKE_GENERATOR_PLATFORM)
-        if(CMAKE_GENERATOR_PLATFORM STREQUAL "Win32")
-            set(CPU_ARCH "x86")
-        else()
-            set(CPU_ARCH "${CMAKE_GENERATOR_PLATFORM}")
-        endif()
-    endif()
-    set(DUILIB_SKIA_LIB_SUBPATH "llvm.${CPU_ARCH}.release")
-endif()
-
+# 包含公共实现代码
 include("${DUILIB_SRC_ROOT_DIR}/cmake/duilib_common.cmake")
 include("${DUILIB_SRC_ROOT_DIR}/cmake/duilib_bin.cmake")
 ```
+
+默认值规则（详见 `cmake/README.md`）：Windows 为 `llvm.<CPU_ARCH>.<DUILIB_BUILD_TYPE>`
+（`CPU_ARCH` 取自 `cmake -A`，`-A Win32` → `x86`，缺省 `x64`），其他平台为空、按
+`${编译器}.${架构}.${构建类型}` 自动拼接；`set(... CACHE ...)` 不会覆盖已有缓存项，
+故外部 `-DDUILIB_SKIA_LIB_SUBPATH=...` 依然优先。
 
 整个过程不需要人去翻 `docs/Control.md` 查属性名，也不需要回忆按钮该叫什么——
 窗口类、XML、主线程、入口、CMake 都已经由 Skill 提供并验证，AI 直接取用即可。
@@ -422,7 +417,7 @@ python .workbuddy/skills/nim-duilib/scripts/verify_docs.py --repo <仓库根> --
 
 输出形如：`扫描文档 13 个，源码索引：121 个宏 / 96 个事件 / 2408 个类名 / 42 个字体 / 350 个色名，
 未发现文档漂移`。它第一次运行就抓出了源文档里一个真实错误：`bg_statusbar` 这个色名在三个  
-`global.xml` 里都不存在。<!-- verify:allow-missing bg_statusbar -->
+`global.xml` 里都不存在。
 
 **第二层：cmake configure。** 只配置不构建，即可验证 `CMakeLists.txt` 是否写对，几秒钟出结果。
 
@@ -442,9 +437,10 @@ SDK="C:/Program Files (x86)/Windows Kits/10/Include/<SDK版本>"
 
 `-utf-8` 不能省（源码有中文注释时否则报 C4819）。退出码 0 即通过。
 
-> 顺带说一个 CMake 的时序坑：工程里给 `DUILIB_SKIA_LIB_SUBPATH` 设默认值时，  
-> 必须写在 `include(duilib_common.cmake)` **之前**。因为那个脚本用 `option()` 声明了同名变量，  
-> `option()` 执行后变量必然已定义，此后再判断「是否未定义」永远为假。
+> 顺带说一个 CMake 的时序坑：`option()` 声明过的变量永远"已定义"，之后再判断「未定义」恒为假。  
+> `DUILIB_SKIA_LIB_SUBPATH` 就曾踩过它——旧模板要求工程把它写在 `include(duilib_common.cmake)` **之前**。  
+> 现已下沉到 `duilib_common.cmake` 内部计算，并改用 `set(... CACHE ...)` 声明（外部 `-D` 仍优先），  
+> 工程 `CMakeLists.txt` 不必再设置该变量。
 
 ---
 
@@ -497,3 +493,7 @@ AI 就从「会写 C++ 的陌生人」变成「懂这个框架的同事」。
 
 如果你也在维护一个有历史包袱的 C++ 项目，不妨从「写一份入口文档 + 建一个校验脚本」开始，  
 成本比想象中低，收益比想象中大。
+
+## 十、资源链接
+nim_duilib界面库的代码库，请点击访问：[nim_duilib](https://github.com/rhett-lee/nim_duilib)     
+nim_duilib 是一款基于C++开发的跨平台界面库，源于经典的 duilib 界面库并进行了深度优化与功能扩展，支持Windows/Linux/macOS/FreeBSD平台，支持的Linux系统包括OpenEuler、OpenKylin、UbuntuKylin、统信UOS、中科方德、Ubuntu、Fedora、Debian等，专注于简化桌面应用的高效开发。其设计融合了DirectUI理念，通过XML描述界面布局，实现视觉与逻辑的分离，显著提升开发灵活性与维护性。

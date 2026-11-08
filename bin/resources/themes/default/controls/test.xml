@@ -1,31 +1,137 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<Window size="800,600" use_system_caption="true">
+<Window size="980,900" use_system_caption="true">
     <VBox bkcolor="bg_window_main">
-        <HBox height="30" margin="10,10,0,0">
-            <Label text="Progress: "/>
-            <Label name="progress_text" text="0%"/>
-        </HBox>
-        <HBox margin="0,10,0,0">
-            <VBox valign="center" halign="center" width="50%" height="100%">
-                <!-- 水平进度条 -->
-                <Progress class="progress_horizontal_blue" name="progress11" reverse="false" height="6" width="stretch" min="0" max="100" value="0" margin="20,20,20,20" tooltip_text="ui::Progress"/>
-                <Progress progress_color="blue"            name="progress12" reverse="false" height="6" width="stretch" min="0" max="100" value="0" marquee="false" margin="20,20,20,20" bkcolor="LightGray" tooltip_text="ui::Progress"/>
-                <Slider class="slider_horizontal_blue"     name="progress13" reverse="false" height="14" width="stretch" min="0" max="100" value="0" margin="20,20,20,20"  tooltip_text="ui::Slider"/>
-                <CircleProgress                            name="progress14" reverse="false" circular="true" height="80" width="80"
-                                circle_width="12" bgcolor="gray" fgcolor="green" gradient_color="red" clockwise="true"  min="0" max="100" value="0" margin="20,20,20,20"
-                                text_padding="10,32,10,10" normal_text_color="darkcolor" indicator="file='public/progress/indicator.svg' width='12' height='12'" tooltip_text="ui::CircleProgress"/>
-            </VBox>
-            <HBox valign="center" halign="center" width="50%" height="100%">
-                <!-- 垂直进度条 -->
-                <Progress class="progress_vertical_blue" name="progress21" reverse="false" height="stretch" width="6" min="0" max="100" value="0" horizontal="false" margin="20,20,20,20" tooltip_text="ui::Progress"/>
-                <Progress progress_color="blue"          name="progress22" reverse="false" height="stretch" width="6" min="0" max="100" value="0" horizontal="false" margin="20,20,20,20" bkcolor="LightGray" tooltip_text="ui::Progress"/>
-                <Slider class="slider_vertical_blue"     name="progress23" reverse="false" height="stretch" width="14" min="0" max="100" value="0" margin="20,20,20,20" horizontal="false" tooltip_text="ui::Slider"/>
-                <CircleProgress                          name="progress24" reverse="false" circular="true" height="80" width="80" horizontal="false"
-                                circle_width="12" bgcolor="gray" fgcolor="green" gradient_color="red" clockwise="true" min="0" max="100" value="0" margin="20,20,20,20"
-                                text_padding="10,32,10,10" normal_text_color="darkcolor" indicator="file='public/progress/indicator.svg' width='12' height='12'" tooltip_text="ui::CircleProgress"/>
+        <VBox>
+            <HBox height="auto">
+                <GroupHBox height="80" margin="6,6,6,6" text="MessageBox" corner_size="4,4">
+                    <Button class="btn_global" text="MessageBox Test" name="message_box_btn" margin="20,30,0,0" width="160" height="30" border_round="3,3"/>
+                </GroupHBox>
+                <GroupHBox height="80" margin="6,6,6,6" text="Toast" corner_size="4,4">
+                    <Button class="btn_global" text="Toast Test" name="toast_btn" margin="20,30,0,0" width="160" height="30" border_round="3,3"/>
+                </GroupHBox>
+                <!-- Flyout 浮层：4 个按钮分别从下/上/右/左弹出，均以自身为锚点 -->
+                <GroupVBox height="80" width="auto" margin="6,6,6,6" text_id="STRID_FLYOUT_DEMO_GROUP" corner_size="4,4">
+                    <HBox margin="8,28,8,8" height="28" width="auto">
+                        <Button class="btn_global" text_id="STRID_FLYOUT_DEMO_BOTTOM" name="flyout_bottom" width="56" height="28" border_round="3,3"/>
+                        <Button class="btn_global" text_id="STRID_FLYOUT_DEMO_TOP" name="flyout_top" width="56" height="28" border_round="3,3" margin="6,0,0,0"/>
+                        <Button class="btn_global" text_id="STRID_FLYOUT_DEMO_LEFT" name="flyout_left" width="56" height="28" border_round="3,3" margin="6,0,0,0"/>
+                        <Button class="btn_global" text_id="STRID_FLYOUT_DEMO_RIGHT" name="flyout_right" width="56" height="28" border_round="3,3" margin="6,0,0,0"/>
+                    </HBox>
+                </GroupVBox>                
             </HBox>
-        </HBox>
-        <Button class=""/>
-        <Control />
+            <HBox height="auto">
+                <!-- Calendar 演示：单选/范围 两个按钮 -->
+                <GroupVBox height="80" width="auto" margin="6,6,6,6" text_id="STRID_CALENDAR_DEMO_GROUP" corner_size="4,4">
+                    <HBox margin="8,28,8,8" height="28" width="auto">
+                        <Button class="btn_global" text_id="STRID_CALENDAR_DEMO_SINGLE" name="calendar_single" width="56" height="28" border_round="3,3"/>
+                        <Button class="btn_global" text_id="STRID_CALENDAR_DEMO_RANGE" name="calendar_range" width="56" height="28" border_round="3,3" margin="6,0,0,0"/>
+                    </HBox>
+                </GroupVBox>
+                <!-- 进度条测试：独立窗口入口 -->
+                <GroupHBox height="80" width="auto" margin="6,6,6,6" text="Progress" corner_size="4,4">
+                    <Button class="btn_global" text="Progress Test" name="progress_btn" margin="20,30,20,0" width="140" height="30" border_round="3,3"/>
+                </GroupHBox>
+
+                <!-- 范围滑块测试：独立窗口入口 -->
+                <GroupHBox height="80" width="auto" margin="6,6,6,6" text="RangeSlider" corner_size="4,4">
+                    <Button class="btn_global" name="rangeslider_btn" text_id="STRID_CONTROLS_RANGESLIDER_TEST"
+                            margin="20,30,20,0" width="160" height="30" border_round="3,3"/>
+                </GroupHBox>
+                
+                <!-- 上下文菜单：一行代码为任意控件绑定右键菜单(Control::AttachPopupMenu) -->
+                <GroupHBox text_id="STRID_CONTROLS_CONTEXT_MENU" height="80" margin="6,6,6,6" corner_size="4,4">
+                    <Button class="btn_global" name="context_menu_btn" text_id="STRID_CONTROLS_CONTEXT_MENU_HINT"
+                            margin="20,30,20,0" width="220" height="30" border_round="3,3"/>
+                </GroupHBox>
+            </HBox>
+
+            <!-- Stepper 向导步骤条：独立演示窗口入口 -->
+            <GroupHBox text="Stepper" height="80" width="auto" margin="6,6,6,6" corner_size="4,4">
+                <Button class="btn_global" name="stepper_btn" text_id="STRID_CONTROLS_STEPPER_TEST"
+                        margin="20,30,20,0" width="160" height="30" border_round="3,3"/>
+            </GroupHBox>
+
+            <!-- TabCtrl (垂直标签 / 固定标签 / 溢出滚动 / 角标)：独立演示窗口入口 -->
+            <GroupHBox text_id="STRID_CONTROLS_TABCTRL_FULL" height="80" margin="6,6,6,6" corner_size="4,4">
+                <Button class="btn_global" name="tab_ctrl_test_btn" text_id="STRID_CONTROLS_TABCTRL_TEST_BTN" margin="20,30,0,0"
+                        width="160" height="30" border_round="3,3"
+                        tooltip_text_id="STRID_CONTROLS_TABCTRL_TEST_TIP"/>
+            </GroupHBox>
+
+            <!-- TagInput 标签输入框 -->
+            <GroupVBox text_id="STRID_CONTROLS_TAG_INPUT" height="auto" margin="6,6,6,6" corner_size="4,4">
+                <HBox height="auto" margin="8,28,8,8">
+                    <TagInput class="tag_input" name="tag_input" tags="nim_duilib;C++;Desktop UI"
+                              prompt_text_id="STRID_CONTROLS_TAG_INPUT_PROMPT"/>
+                    <Button class="btn_global" name="btn_add_tag" text_id="STRID_CONTROLS_TAG_ADD" width="100" height="30" border_round="3,3" margin="8,2,0,2" valign="center"/>
+                    <TagInput class="tag_input" name="tag_input2" delimiter="," width="240" margin="8,2,0,2"
+                              prompt_text_id="STRID_CONTROLS_TAG_INPUT_PROMPT2"/>
+                </HBox>
+            </GroupVBox>
+
+            <!-- AutoComplete 自动完成输入框 -->
+            <GroupVBox text_id="STRID_CONTROLS_AUTO_COMPLETE" height="auto" margin="6,6,6,6" corner_size="4,4">
+                <HBox height="auto" margin="8,28,8,8">
+                    <AutoComplete class="auto_complete" name="auto_complete"
+                                  items="Beijing;Berlin;Budapest;Bangkok;Boston;Brisbane;Chicago;London;Los Angeles;New York;Paris;Seattle;Shanghai;Shenzhen;Singapore;Sydney;Tokyo;Toronto"
+                                  prompt_text_id="STRID_CONTROLS_AUTO_COMPLETE_PROMPT"/>
+                    <AutoComplete class="auto_complete" name="auto_complete2" match_mode="contains" max_visible="6"
+                                  width="260" margin="8,2,0,2"
+                                  prompt_text_id="STRID_CONTROLS_AUTO_COMPLETE_PROMPT2"/>
+                </HBox>
+            </GroupVBox>
+
+            <!-- SearchBox 搜索框（建议 + 历史） -->
+            <GroupVBox text="SearchBox 搜索框（建议 + 历史）" height="auto" margin="6,6,6,6" corner_size="4,4">
+                <HBox height="auto" margin="8,28,8,8">
+                    <SearchBox class="search_box" name="search_box" width="360"
+                               prompt_text="搜索控件 / 输入关键词（回车记录历史）"
+                               suggestions="nim_duilib;C++;Desktop UI;Skia;Qt;WPF;MFC;Win32;DirectUI;Electron;Flutter;duilib"
+                               history_enabled="true" max_history="10" max_visible="8"/>
+                </HBox>
+            </GroupVBox>
+
+            <!-- 遮罩/蒙版层（Mask）：模态遮罩 / 新手引导 / 加载遮罩 -->
+            <GroupHBox text_id="STRID_CONTROLS_MASK" height="70" margin="6,6,6,6" corner_size="4,4">
+                <Button class="btn_global" name="mask_modal_btn" text_id="STRID_CONTROLS_MASK_MODAL"
+                        margin="20,24,0,10" width="120" height="30" border_round="3,3"/>
+                <Button class="btn_global" name="mask_guide_btn" text_id="STRID_CONTROLS_MASK_GUIDE"
+                        margin="8,24,0,10" width="120" height="30" border_round="3,3"/>
+                <Button class="btn_global" name="mask_guide_target" text_id="STRID_CONTROLS_MASK_GUIDE_TARGET"
+                        margin="8,24,0,10" width="120" height="30" border_round="3,3"/>
+                <Button class="btn_global" name="mask_loading_btn" text_id="STRID_CONTROLS_MASK_LOADING"
+                        margin="8,24,0,10" width="120" height="30" border_round="3,3"/>
+            </GroupHBox>
+        </VBox>
+
+        <!-- 模态遮罩：铺满整个窗口、拦截鼠标输入，中间显示一个模态卡片 -->
+        <Mask class="mask" name="mask_modal" visible="false">
+            <VBox bkcolor="bg_window_card" border_round="6,6" float="true" halign="center" valign="center"
+                  width="300" height="170" padding="20,20,20,20">
+                <Label text_id="STRID_CONTROLS_MASK_MODAL_TITLE" width="stretch" height="auto" font="system_bold_14"/>
+                <Label text_id="STRID_CONTROLS_MASK_MODAL_DESC" width="stretch" height="auto"
+                       margin="0,12,0,0" font="system_regular_12" multi_line="true" replace_newline="true"/>
+                <Button class="btn_global_blue_80x30" name="mask_modal_close" text_id="STRID_CONTROLS_MASK_CLOSE"
+                        float="true" halign="center" valign="bottom" width="90" height="30" border_round="3,3"/>
+            </VBox>
+        </Mask>
+
+        <!-- 新手引导遮罩：镂空高亮 mask_guide_target，镂空区域内点击可穿透到该按钮。
+             这里显式指定较深的蒙层色（默认语义色 bg_overlay 在浅色主题下偏淡，镂空对比不明显） -->
+        <Mask class="mask" name="mask_guide" visible="false" mask_color="#80000000"
+              highlight_control="mask_guide_target" highlight_padding="6" highlight_corner="6" click_through="true">
+            <Label text_id="STRID_CONTROLS_MASK_GUIDE_HINT" float="true" halign="center" valign="bottom"
+                   width="auto" height="auto" margin="0,0,0,60" font="system_regular_14" text_color="#FFFFFFFF"/>
+        </Mask>
+
+        <!-- 加载遮罩：覆盖内容区并拦截交互，中间显示加载动画 -->
+        <Mask class="mask" name="mask_loading" visible="false">
+            <VBox float="true" halign="center" valign="center" width="220" height="70">
+                <Progress class="progress_horizontal" name="mask_loading_progress" marquee="true" marquee_width="60"
+                          height="6" margin="20,0,20,0"/>
+                <Label text_id="STRID_CONTROLS_MASK_LOADING_TEXT" width="stretch" height="auto"
+                       margin="0,16,0,0" text_align="center" font="system_regular_14"/>
+            </VBox>
+        </Mask>
     </VBox>
 </Window>

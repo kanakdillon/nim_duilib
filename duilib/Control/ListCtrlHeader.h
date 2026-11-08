@@ -209,8 +209,9 @@ protected:
     void OnHeaderColumnCheckStateChanged(ListCtrlHeaderItem* pHeaderItem, bool bChecked);
 
     /** 表头列的显示属性发生变化
+    * @param [in] nColumnId 列的ID
     */
-    void OnHeaderColumnVisibleChanged();
+    void OnHeaderColumnVisibleChanged(size_t nColumnId);
 
     /** 列表头列的分割条双击事件
     * @param [in] pHeaderItem 列表头控件接口
@@ -223,6 +224,14 @@ protected:
         （2）勾选状态和选择状态分离，是两个不同的状态
     */
     virtual bool SupportCheckMode() const override;
+
+    /** 将鼠标点（窗口客户区坐标）换算到用于判定CheckBox图标命中的控件坐标空间
+    *   表头左侧的CheckBox固定显示在最左侧，位于冻结列区域内（不随横向滚动移动），
+    *   存在冻结列时，横向的滚动量需要按0计，保证点击判定与冻结列的显示位置一致
+    * @param [in] ptMouse 鼠标点（窗口客户区坐标）
+    * @return 返回换算后的控件坐标空间中的点
+    */
+    virtual UiPoint GetCheckBoxMousePos(const UiPoint& ptMouse) const override;
 
     /** 勾选状态变化事件(m_bChecked变量发生变化)
     */

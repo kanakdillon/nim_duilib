@@ -1,4 +1,6 @@
-﻿# CEF控件（CefControl）    
+简体中文 | [English](CEF.en.md)
+
+# CEF控件（CefControl）    
 nim_duilib的CEF控件（CefControl）是对libcef的集成封装，将CEF组件相关的功能封装成为duilib的一个控件，使得网页浏览功能能够与界面库整合在一起使用。libcef（Chromium Embedded Framework，简称CEF）‌是一个开源框架，允许开发者在其应用程序中嵌入Chromium（Google Chrome浏览器的开源基础）浏览器功能。通过libcef，开发者可以将网页渲染、JavaScript执行及HTML5支持等功能集成到自己的应用中，而无需用户单独安装浏览器‌。  
 
 ## 一、libcef的核心功能与架构

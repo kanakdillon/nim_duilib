@@ -1,0 +1,235 @@
+# 事件处理
+
+## 方式一: XML 内联事件（无需 C++ 代码）
+
+### 语法
+
+```xml
+<控件 name="source">
+    <Event type="事件类型" receiver="目标控件名" apply_attribute="属性名='属性值'"/>
+</控件>
+```
+
+### receiver 写法
+
+| 格式 | 含义 |
+|------|------|
+| `receiver="target_name"` | 按名称在窗口中查找控件 |
+| `receiver="./target_name"` | 在当前容器内查找 |
+| `receiver=""` | 控件自身 |
+| `receiver="#window#"` | 窗口对象 |
+| `receiver="name1 name2"` | 多个控件(空格分隔) |
+
+### 常见示例
+
+**点击按钮显示/隐藏面板:**
+
+```xml
+<Button name="btn_toggle" text="切换">
+    <Event type="click" receiver="panel" apply_attribute="visible='true'"/>
+</Button>
+```
+
+**单选切换内容:**
+
+```xml
+<Option group="tabs" text="页签1" selected="true">
+    <Event type="select" receiver="page1" apply_attribute="visible='true'"/>
+    <Event type="select" receiver="page2" apply_attribute="visible='false'"/>
+</Option>
+<Option group="tabs" text="页签2">
+    <Event type="select" receiver="page1" apply_attribute="visible='false'"/>
+    <Event type="select" receiver="page2" apply_attribute="visible='true'"/>
+</Option>
+```
+
+**鼠标悬浮切换样式:**
+
+```xml
+<Control name="card" bkcolor="white">
+    <Event type="mouse_enter" receiver="" apply_attribute="bkcolor='AliceBlue'"/>
+    <Event type="mouse_leave" receiver="" apply_attribute="bkcolor='white'"/>
+</Control>
+```
+
+**鼠标悬浮播放动画:**
+
+```xml
+<Control bkimage="file='fan.gif' auto_play='false' play_count='-1'">
+    <Event type="mouse_enter" receiver="" apply_attribute="start_image_animation={}"/>
+    <Event type="mouse_leave" receiver="" apply_attribute="stop_image_animation={}"/>
+</Control>
+```
+
+**修改窗口阴影类型:**
+
+```xml
+<Option group="shadow" text="大阴影">
+    <Event type="select" receiver="#window#" apply_attribute="shadow_type={big}"/>
+</Option>
+```
+
+**修改容器布局属性:**
+
+```xml
+<Option group="align" text="居中对齐">
+    <Event type="select" receiver="container" apply_attribute="child_halign='center'"/>
+</Option>
+```
+
+## 方式二: C++ 事件绑定
+
+### 常用 Attach 方法
+
+```cpp
+// 在 OnInitWindow() 中绑定
+
+// 点击
+control->AttachClick([this](const ui::EventArgs& args) -> bool {
+    return true;
+});
+
+// 选中/取消选中 (CheckBox/Option/ListBox)
+control->AttachSelect([](const ui::EventArgs&) { return true; });
+control->AttachUnSelect([](const ui::EventArgs&) { return true; });
+
+// 文本变化 (RichEdit)
+edit->AttachTextChanged([](const ui::EventArgs&) { return true; });
+
+// 回车键 (RichEdit)
+edit->AttachReturn([](const ui::EventArgs&) { return true; });
+
+// Tab选择 (TabBox/TabCtrl)：wParam 是新页索引，lParam 是旧页索引
+tabCtrl->AttachTabSelect([](const ui::EventArgs& args) {
+    const size_t newIndex = static_cast<size_t>(args.wParam);
+    const size_t oldIndex = static_cast<size_t>(args.lParam);
+    return true;
+});
+
+// 值变化 (Progress/Slider/DateTime/PropertyGridProperty)
+slider->AttachEvent(ui::kEventValueChanged, [](const ui::EventArgs&) { return true; });
+
+// Panel 面板：折叠/展开完成（AttachExpand / AttachCollapse）
+// 动作前可取消：AttachCollapsing / AttachExpanding 回调返回 false 即放弃本次操作
+// 注意：XML 初始 collapsed 属性与手风琴 group 内部联动不会触发取消事件
+if (auto* panel = dynamic_cast<ui::PanelVBox*>(FindControl(_T("my_panel")))) {
+    panel->AttachCollapsing([](const ui::EventArgs&) {
+        return false;  // true 放行折叠，false 取消折叠
+    });
+}
+
+// NavigationView 侧边栏导航（事件由 NavigationView 自身触发，与内部 TabBox 的 kEventTabSelect 无关）
+if (auto* nav = dynamic_cast<ui::NavigationView*>(FindControl(_T("nav")))) {
+    // 选中项变化：wParam 新序号，lParam 旧序号（无选中为 ui::Box::InvalidIndex）
+    nav->AttachNavSelectionChanged([](const ui::EventArgs& args) {
+        size_t nNew = (size_t)args.wParam;
+        size_t nOld = (size_t)args.lParam;
+        return true;
+    });
+    // 点击导航项：重复点击已选中项也会触发（适合刷新/回顶场景），wParam 为可选项序号
+    nav->AttachNavItemClick([](const ui::EventArgs&) { return true; });
+    // 窗格即将收起/展开：wParam 目标状态（1=收起 0=展开），返回 false 取消本次切换
+    nav->AttachNavPaneToggling([](const ui::EventArgs&) { return true; });
+    // 窗格收起/展开完成：wParam 为当前状态（1=收起 0=展开）
+    nav->AttachNavPaneToggled([](const ui::EventArgs&) { return true; });
+}
+
+// 通用事件绑定（枚举名见下方"完整事件类型列表"，取值以 duilib/duilib_defs.h 中 enum EventType 为准）
+control->AttachEvent(ui::kEventMouseEnter, handler);
+control->AttachEvent(ui::kEventMouseLeave, handler);
+control->AttachEvent(ui::kEventKeyDown, handler);
+control->AttachEvent(ui::kEventSetFocus, handler);
+control->AttachEvent(ui::kEventKillFocus, handler);
+control->AttachEvent(ui::kEventWindowClose, handler);
+```
+
+### EventArgs 参数（定义见 duilib/Core/EventArgs.h）
+
+```cpp
+struct EventArgs
+{
+    EventType eventType;   // 事件类型（enum EventType: uint8_t）
+    WPARAM    wParam;      // 参数1（Windows 下为 UINT_PTR，可传指针）
+    LPARAM    lParam;      // 参数2（Windows 下为 LONG_PTR，可传指针）
+    VirtualKeyCode vkCode; // 按键码（enum VirtualKeyCode，不是整数）
+    UiPoint   ptMouse;     // 鼠标位置
+    uint32_t  modifierKey; // 修饰键，取值见 duilib/Core/Keyboard.h 的 enum ModifierKey
+    int32_t   eventData;   // 整型附加数据（是 int32_t，不是 int64_t）
+    void*     pEventData;  // 指针附加数据
+    int32_t   listCtrlType;// ListCtrl 专用：事件对应的视图类型
+
+    void       SetSender(Control* pControl);
+    Control*   GetSender() const;      // ← 取发送者用这个
+    void       SetSenderWeakFlag(std::weak_ptr<WeakFlag> senderFlag);
+    bool       IsSenderExpired() const;
+
+private:
+    Control* pSender;                  // private！外部不可直接访问
+    std::weak_ptr<WeakFlag> m_senderFlag;
+};
+```
+
+**取发送者控件必须写 `args.GetSender()`**（返回 nullptr 表示控件已销毁），写 `args.pSender` 编译不过。
+
+```cpp
+btn->AttachClick([this](const ui::EventArgs& args) {
+    ui::Control* pSender = args.GetSender();   // ✅ 正确
+    if (pSender == nullptr) {
+        return true;                            // 控件已销毁
+    }
+    return true;
+});
+```
+
+### 完整事件类型列表
+
+键鼠: `kEventKeyDown`, `kEventKeyUp`, `kEventChar`, `kEventMouseEnter`, `kEventMouseLeave`, `kEventMouseMove`, `kEventMouseHover`, `kEventMouseWheel`, `kEventMouseButtonDown`, `kEventMouseButtonUp`, `kEventMouseDoubleClick`, `kEventMouseRButtonDown`, `kEventMouseRButtonUp`, `kEventMouseRDoubleClick`, `kEventMouseMButtonDown`, `kEventMouseMButtonUp`, `kEventMouseMDoubleClick`, `kEventContextMenu`
+
+焦点/输入法: `kEventSetFocus`, `kEventKillFocus`, `kEventSetCursor`, `kEventCaptureChanged`, `kEventImeSetContext`, `kEventImeStartComposition`, `kEventImeComposition`, `kEventImeEndComposition`
+
+操作: `kEventClick`, `kEventRClick`, `kEventSelect`, `kEventUnSelect`, `kEventCheck`, `kEventUnCheck`, `kEventTabSelect`, `kEventExpand`, `kEventCollapse`, `kEventPanelExpanding`, `kEventPanelCollapsing`（后两个为 Panel 专用：即将展开/折叠时触发，回调返回 false 可取消）, `kEventNavigationItemClick`, `kEventNavigationSelectionChanged`, `kEventNavigationPaneToggling`, `kEventNavigationPaneToggled`（NavigationView 专用：导航项点击/选中变化/窗格切换前（可取消）/窗格切换后）
+
+编辑: `kEventTextChanged`, `kEventSelChanged`, `kEventReturn`, `kEventEsc`, `kEventTab`, `kEventZoom`, `kEventLinkClick`, `kEventScrollPosChanged`, `kEventValueChanged`
+
+状态（注意都是过去式 `-ed`）: `kEventSetFocus`, `kEventKillFocus`, `kEventPosChanged`, `kEventSizeChanged`, `kEventVisibleChanged`, `kEventStateChanged`, `kEventSelectColor`
+
+窗口: `kEventWindowSetFocus`, `kEventWindowKillFocus`, `kEventWindowPosChanged`, `kEventWindowClose`, `kEventWindowCreate`, `kEventWindowSize`, `kEventWindowMove`
+
+拖放: `kEventDropEnter`, `kEventDropOver`, `kEventDropLeave`, `kEventDropData`
+
+动画: `kEventImageAnimationStart`, `kEventImageAnimationPlayFrame`, `kEventImageAnimationStop`
+
+加载: `kEventLoadingStart`, `kEventLoading`, `kEventLoadingStop`
+
+> **命名陷阱**: 勾选/文本/选择/值/可见性/状态/大小 相关事件都是**过去式**——`kEventCheck`（不是 Checked）、
+> `kEventTextChanged`（不是 TextChange）、`kEventSelChanged`（不是 SelChange）、
+> `kEventValueChanged`（不是 ValueChange）、`kEventVisibleChanged`（不是 VisibleChange）、
+> `kEventStateChanged`（不是 StateChange）；控件尺寸变化是 `kEventSizeChanged`，**没有 `kEventResize`**。
+
+XML 内联事件的 `type` 字符串是另一套（小写下划线，如 `click` / `text_changed` / `value_changed`），
+映射表见 `duilib/Core/EventArgs.cpp` 的 `InitEventStringMap`。两套名字不要混用。
+
+### 注意事项
+
+- 事件回调返回 `true` 表示已处理该事件
+- 使用 `UiBind` 绑定成员函数确保弱引用安全
+- lambda 中捕获 `this` 时用 `ui::UiBind(this, lambda)` 包装，防止控件销毁后回调崩溃
+
+### 右键上下文菜单（便捷绑定，一行代码）
+
+除单独监听 `kEventContextMenu` 事件外，`Control` 提供了 `AttachPopupMenu`，
+一行代码即可把右键菜单绑定到任意控件：右键点击即自动弹出指定菜单并完成屏幕坐标换算，
+菜单项被激活（鼠标点击或回车）后回调。
+
+```cpp
+btn->AttachPopupMenu(_T("menu/settings_menu.xml"),
+    [this](const DString& itemName, size_t nItemIndex) {
+        // itemName: 被激活菜单项的 name 属性; nItemIndex: 菜单项索引(从0开始)
+    });
+```
+
+- 回调类型：`ContextMenuActionEvent = std::function<void(const DString&, size_t)>`；
+  `ContextMenuCreatingEvent = std::function<void(Menu*, Control*)>`（菜单弹出后回调，可动态增删菜单项、设置勾选/禁用状态）。
+- 菜单 XML 路径相对窗口资源路径 `GetResourcePath()`（如 `"menu/settings_menu.xml"`）。
+- 重复调用 `AttachPopupMenu` 会覆盖上次的绑定配置；解除绑定用 `DetachPopupMenu()`。
+- 跨平台通用（Windows/Linux/macOS，含 `Shift+F10`）。详见 `docs/Menu.md`。

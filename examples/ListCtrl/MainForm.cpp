@@ -1,9 +1,26 @@
 #include "MainForm.h"
 #include "MainThread.h"
 
+#include <cmath>
+#include <chrono>
+
+#include "duilib/Utils/FilePath.h"
+
+#if defined (DUILIB_BUILD_FOR_WIN)
+    #include <psapi.h>
+    #pragma comment(lib, "psapi.lib")
+#endif
+
 MainForm::MainForm():
     m_fLoadingPercent(0),
-    m_imageId(0)
+    m_imageId(0),
+    m_bStressDataLoaded(false),
+    m_bAllColumnsEditable(false),
+    m_bComboEditor(false),
+    m_bReportViewItemFilled(false),
+    m_progressTextPos(_T("center")),
+    m_progressColor(),
+    m_progressBkColor()
 {
 }
 
@@ -44,6 +61,11 @@ void MainForm::OnInitWindow()
     pListImageList->AddImageString(_T("file='display-color.svg' width='32' height='32' valign='center' halign='center'"), Dpi());
     pIconImageList->AddImageString(_T("file='display-color.svg' width='64' height='64' valign='center' halign='center'"), Dpi());
 
+    //默认在表头显示CheckBox
+    if (pListCtrl->GetHeaderCtrl() != nullptr) {
+        pListCtrl->GetHeaderCtrl()->SetShowCheckBox(true);
+    }
+
     //填充数据
     InsertItemData(400, 9, (int32_t)m_imageId);
 
@@ -55,6 +77,41 @@ void MainForm::OnInitWindow()
 
     //测试loading功能
     TestListCtrlLoading(pListCtrl);
+
+    //演示单格刷新功能（RefreshSubItem）：由界面上的勾选框开关控制开启/关闭
+    InitFillRefreshTests(pListCtrl);
+
+    //演示ListCtrl级别的列显隐接口（SetColumnVisible/IsColumnVisible）
+    TestColumnVisibleApi(pListCtrl);
+
+    //事件与状态显示：列布局事件、自定义排序、编辑状态事件
+    InitEventStateTests(pListCtrl);
+
+    //单元格选择与勾选：单元格选择 API、勾选 API、自动勾选、单元格选择事件
+    InitCellSelectionTests(pListCtrl);
+
+    //复制与导出：复制为CSV、整表导出CSV、复制/导出开关
+    InitCheckCopyTests(pListCtrl);
+
+    //进度条与编辑器：进度条外观、单格进度、逐列编辑器类型切换
+    InitProgressEditorTests(pListCtrl);
+
+    //初始化"压力测试"面板（Phase 0 性能基线）
+    InitStressTest(pListCtrl);
+
+    //压力测试仅适用于 Windows 平台（内存读数依赖 Windows API）：其他平台上隐藏该分组
+#if defined (DUILIB_BUILD_FOR_WIN)
+    bool bSupportStressTest = true;
+#else
+    bool bSupportStressTest = false;
+#endif
+    if (!bSupportStressTest) {
+        ui::Control* pStressGroup = FindControl(_T("stress_test_group"));
+        ASSERT(pStressGroup != nullptr);
+        if (pStressGroup != nullptr) {
+            pStressGroup->SetVisible(false);
+        }
+    }
 
     //pListCtrl->AttachViewSizeChanged([this, pListCtrl](const ui::EventArgs& args) {
     //    if (args.listCtrlType == (int32_t)ui::ListCtrlType::Report) {
@@ -69,6 +126,7 @@ void MainForm::OnInitWindow()
     //    }        
     //    return true;
     //    });
+
 }
 
 bool MainForm::OnLanguageChanged()
@@ -465,10 +523,82 @@ void MainForm::InitListCtrlEvents(ui::ListCtrl* pListCtrl)
         return true;
         });
 
+    //单元格自动换行：对当前选中列的单元格，开启/关闭自动换行（仅Report视图有效）
+    //说明：换行开启后，文本超出单元格宽度时自动换行；需配合 SetDataItemHeight 把行高调大，否则超出部分会被裁剪
+    ui::Option* pCellSingleLine = dynamic_cast<ui::Option*>(FindControl(_T("cell_single_line")));
+    ui::Option* pCellWordWrap = dynamic_cast<ui::Option*>(FindControl(_T("cell_word_wrap")));
+    if ((pCellSingleLine != nullptr) && (pCellWordWrap != nullptr)) {
+        auto OnCellWrap = [this, pColumnCombo, pListCtrl](bool bSingleLine) {
+            size_t nColumnId = pColumnCombo->GetItemData(pColumnCombo->GetCurSel());
+            size_t nColumnIndex = pListCtrl->GetColumnIndex(nColumnId);
+            if (nColumnIndex == ui::Box::InvalidIndex) {
+                return;
+            }
+            size_t nItemCount = pListCtrl->GetDataItemCount();
+            for (size_t nItemIndex = 0; nItemIndex < nItemCount; ++nItemIndex) {
+                pListCtrl->SetSubItemSingleLine(nItemIndex, nColumnIndex, bSingleLine);
+            }
+            //换行后需要调大行高以容纳多行文本；恢复单行时恢复默认行高（默认行高为32）
+            pListCtrl->SetDataItemHeight(bSingleLine ? 32 : 64, true);
+        };
+        pCellSingleLine->AttachSelect([this, OnCellWrap](const ui::EventArgs&) {
+            OnCellWrap(true);
+            return true;
+            });
+        pCellWordWrap->AttachSelect([this, OnCellWrap](const ui::EventArgs&) {
+            OnCellWrap(false);
+            return true;
+            });
+    }
+
     //是否支持多选
     ui::CheckBox* pMultiSelect = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_multi_select")));
     if (pMultiSelect != nullptr) {
         pMultiSelect->Selected(pListCtrl->IsMultiSelect(), false);
+    }
+
+    //所有列是否可编辑（勾选：所有行、所有列的数据均设置为可编辑；不勾选：全部不可编辑，默认状态）
+    //勾选状态保存在成员变量中：数据被重新载入（切换语言、还原演示数据等）后会自动重新应用
+    ui::CheckBox* pAllColumnsEditable = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_all_columns_editable")));
+    if (pAllColumnsEditable != nullptr) {
+        m_bAllColumnsEditable = (pListCtrl->GetDataItemCount() > 0) && pListCtrl->IsSubItemEditable(0, 0);
+        pAllColumnsEditable->Selected(m_bAllColumnsEditable, false);
+        pAllColumnsEditable->AttachSelect([this, pListCtrl](const ui::EventArgs&) {
+            m_bAllColumnsEditable = true;
+            SetAllColumnsEditable(pListCtrl, true);
+            return true;
+            });
+        pAllColumnsEditable->AttachUnSelect([this, pListCtrl](const ui::EventArgs&) {
+            m_bAllColumnsEditable = false;
+            SetAllColumnsEditable(pListCtrl, false);
+            return true;
+            });
+    }
+
+    //演示：下拉候选编辑器（kEditCombo）
+    //勾选状态保存在成员变量中：数据被重新载入（切换语言、还原演示数据等）后会自动重新应用
+    ui::CheckBox* pComboEditor = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_combo_editor")));
+    if (pComboEditor != nullptr) {
+        pComboEditor->Selected(m_bComboEditor, false);
+        pComboEditor->AttachSelect([this, pListCtrl](const ui::EventArgs&) {
+            m_bComboEditor = true;
+            SetComboColumnEditor(pListCtrl, true);
+            return true;
+            });
+        pComboEditor->AttachUnSelect([this, pListCtrl](const ui::EventArgs&) {
+            m_bComboEditor = false;
+            SetComboColumnEditor(pListCtrl, false);
+            return true;
+            });
+    }
+
+    //选择方式：按行选择 / 按单元格选择（单元格模式仅Report视图有效）
+    ui::Option* pSelectionModeRow = dynamic_cast<ui::Option*>(FindControl(_T("selection_mode_row")));
+    ui::Option* pSelectionModeCell = dynamic_cast<ui::Option*>(FindControl(_T("selection_mode_cell")));
+    if ((pSelectionModeRow != nullptr) && (pSelectionModeCell != nullptr)) {
+        const bool bCellMode = (pListCtrl->GetSelectionMode() == ui::ListCtrlSelectionMode::kCell);
+        pSelectionModeRow->Selected(!bCellMode, false);
+        pSelectionModeCell->Selected(bCellMode, false);
     }
     //在列表头点击右键
     ui::ListCtrlHeader* pHeaderCtrl = pListCtrl->GetHeaderCtrl();
@@ -549,6 +679,596 @@ void MainForm::InitListCtrlEvents(ui::ListCtrl* pListCtrl)
             return true;
             });
     }
+}
+
+void MainForm::SetAllColumnsEditable(ui::ListCtrl* pListCtrl, bool bEditable)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    const size_t nItemCount = pListCtrl->GetDataItemCount();
+    const size_t nColumnCount = pListCtrl->GetColumnCount();
+    //批量修改期间关闭自动刷新，避免逐格触发刷新
+    const bool bOldEnableRefresh = pListCtrl->SetEnableRefresh(false);
+    for (size_t nItemIndex = 0; nItemIndex < nItemCount; ++nItemIndex) {
+        for (size_t nColumnIndex = 0; nColumnIndex < nColumnCount; ++nColumnIndex) {
+            pListCtrl->SetSubItemEditable(nItemIndex, nColumnIndex, bEditable);
+        }
+    }
+    pListCtrl->SetEnableRefresh(bOldEnableRefresh);
+    if (bOldEnableRefresh) {
+        pListCtrl->Refresh();
+    }
+}
+
+void MainForm::SetComboColumnEditor(ui::ListCtrl* pListCtrl, bool bEnabled)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    //演示列：倒数第2列（该列文本为通用演示数据，便于演示下拉候选选择）
+    const size_t nColumnIndex = 7;
+    if (nColumnIndex >= pListCtrl->GetColumnCount()) {
+        return;
+    }
+    if (bEnabled) {
+        //下拉候选编辑器的候选值按列配置（纯文本，按列ID保存）
+        const std::vector<DString> candidates = {
+            _T("Red"), _T("Green"), _T("Blue"), _T("Yellow"), _T("Purple"), _T("Orange")
+        };
+        pListCtrl->SetColumnCandidates(nColumnIndex, candidates);
+        pListCtrl->SetColumnEditorType(nColumnIndex, ui::ListCtrlEditorType::kEditCombo);
+    }
+    else {
+        //还原为默认的文本编辑器，并清空候选值
+        pListCtrl->SetColumnEditorType(nColumnIndex, ui::ListCtrlEditorType::kEditText);
+        pListCtrl->SetColumnCandidates(nColumnIndex, std::vector<DString>());
+    }
+}
+
+namespace
+{
+/** 高精度计时器：取当前计数值（Windows 使用 QueryPerformanceCounter 的原始 tick；其他平台使用 steady_clock 的微秒） */
+int64_t GetPerfTick()
+{
+#if defined (DUILIB_BUILD_FOR_WIN)
+    LARGE_INTEGER nTick = { 0 };
+    ::QueryPerformanceCounter(&nTick);
+    return nTick.QuadPart;
+#else
+    return (int64_t)std::chrono::duration_cast<std::chrono::microseconds>(
+        std::chrono::steady_clock::now().time_since_epoch()).count();
+#endif
+}
+
+/** 把计数值的差值换算为毫秒 */
+double PerfTickToMs(int64_t nTickCount)
+{
+#if defined (DUILIB_BUILD_FOR_WIN)
+    LARGE_INTEGER nFreq = { 0 };
+    ::QueryPerformanceFrequency(&nFreq);
+    if (nFreq.QuadPart <= 0) {
+        return 0.0;
+    }
+    return (double)nTickCount * 1000.0 / (double)nFreq.QuadPart;
+#else
+    return (double)nTickCount / 1000.0;
+#endif
+}
+
+/** 读取当前进程内存占用；返回 false 表示当前平台不支持该指标（仅 Windows 提供）
+    @param [out] nWorkingSet 当前工作集（字节）
+    @param [out] nPeakWorkingSet 进程启动以来的峰值工作集（字节）
+    @param [out] nPrivateUsage 私有提交内存（字节）
+*/
+bool GetProcessMemorySnapshot(uint64_t& nWorkingSet, uint64_t& nPeakWorkingSet, uint64_t& nPrivateUsage)
+{
+    nWorkingSet = 0;
+    nPeakWorkingSet = 0;
+    nPrivateUsage = 0;
+#if defined (DUILIB_BUILD_FOR_WIN)
+    PROCESS_MEMORY_COUNTERS_EX counters = { 0 };
+    counters.cb = sizeof(counters);
+    if (!::GetProcessMemoryInfo(::GetCurrentProcess(), (PROCESS_MEMORY_COUNTERS*)&counters, sizeof(counters))) {
+        return false;
+    }
+    nWorkingSet = (uint64_t)counters.WorkingSetSize;
+    nPeakWorkingSet = (uint64_t)counters.PeakWorkingSetSize;
+    nPrivateUsage = (uint64_t)counters.PrivateUsage;
+    return true;
+#else
+    return false;
+#endif
+}
+}//namespace
+
+void MainForm::InitStressTest(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    ui::Button* pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_load_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestLoad(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_insert_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestInsert(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_delete_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestDelete(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_delete_batch_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestDeleteBatch(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_compact_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestCompact(pListCtrl);
+            return true;
+            });
+    }
+    //C2：复制选中内容到剪贴板（TSV格式，与 Ctrl+C 效果一致）
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("copy_selection_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            const bool bRet = pListCtrl->CopySelectionToClipboard(false);
+            ui::SystemUtil::ShowMessageBox(this,
+                bRet ? _T("Copy to clipboard: OK (paste into Excel to verify)") :
+                       _T("Copy to clipboard: FAILED (no selection, or enable_copy is false)"),
+                ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_COPY_EXPORT_TITLE")));
+            return true;
+            });
+    }
+    //C2：导出CSV文件（仅导出当前选中内容；文件位于资源目录，可用 Excel 直接打开）
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("export_csv_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            ui::FilePath csvPath = ui::GlobalManager::GetResourceRootPath(false);
+            csvPath /= ui::FilePath(_T("list_ctrl_export.csv"));
+            const DString strFilePath = csvPath.ToString();
+            const bool bRet = pListCtrl->ExportToCsvFile(strFilePath, true);
+            DString msg;
+            if (bRet) {
+                msg = ui::StringUtil::Printf(_T("Export CSV: OK\nFile: %s"), strFilePath.c_str());
+            }
+            else {
+                msg = _T("Export CSV: FAILED (no selection/data, or enable_csv_export is false)");
+            }
+            ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_COPY_EXPORT_TITLE")));
+            return true;
+            });
+    }
+    //C3：进入当前单元格的编辑状态（效果与选中单元格后按 F2 相同）
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("enter_cell_edit_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            const bool bRet = pListCtrl->EnterCurrentCellEdit();
+            if (!bRet) {
+                //仅失败时弹提示；成功时静默进入编辑（若弹模态框，主窗口会失去焦点，
+                //进而向编辑框派发窗口失去焦点事件，刚进入的编辑态会被立即拆除）
+                ui::SystemUtil::ShowMessageBox(this,
+                    _T("Enter cell edit: FAILED (need cell selection mode, a current editable cell, and enable_item_edit)"),
+                    ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_ENTER_CELL_EDIT")));
+            }
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_sort_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestSort(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_repaint_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestRepaint(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_restore_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestRestore(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_load_sparse_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestLoadSparse(pListCtrl);
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("stress_memory_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            StressTestMemory(pListCtrl);
+            return true;
+            });
+    }
+}
+
+void MainForm::StressTestLoad(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    const size_t nRows = 100000;    //10万行
+    const size_t nColumns = 10;     //10列
+
+    //批量数据操作期间关闭界面刷新，避免绘制干扰对数据层耗时的测量
+    pListCtrl->SetEnableRefresh(false);
+    pListCtrl->DeleteAllColumns();
+    pListCtrl->DeleteAllDataItems();
+
+    //1) 添加列
+    const int64_t nTick0 = GetPerfTick();
+    for (size_t nColumn = 0; nColumn < nColumns; ++nColumn) {
+        ui::ListCtrlColumn columnInfo;
+        columnInfo.nColumnWidth = 120;
+        columnInfo.text = ui::StringUtil::Printf(_T("Col %zu"), nColumn);
+        columnInfo.bShowCheckBox = false;
+        columnInfo.nImageId = -1;
+        pListCtrl->InsertColumn(-1, columnInfo);
+    }
+    const int64_t nTick1 = GetPerfTick();
+
+    //2) 设置行数（虚表：仅记录行数，单元格数据按需填充）
+    pListCtrl->SetDataItemCount(nRows);
+    const int64_t nTick2 = GetPerfTick();
+
+    //3) 填充单元格数据（nRows × nColumns）
+    for (size_t nRow = 0; nRow < nRows; ++nRow) {
+        for (size_t nColumn = 0; nColumn < nColumns; ++nColumn) {
+            ui::ListCtrlSubItemData subItemData;
+            subItemData.text = ui::StringUtil::Printf(_T("%zu-%zu"), nRow, nColumn);
+            subItemData.bShowCheckBox = false;
+            subItemData.nImageId = -1;
+            pListCtrl->SetSubItemData(nRow, nColumn, subItemData);
+        }
+    }
+    const int64_t nTick3 = GetPerfTick();
+
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+    m_bStressDataLoaded = true;
+
+    DString msg = ui::StringUtil::Printf(
+        _T("Load stress data\nRows=%zu, Columns=%zu\n")
+        _T("InsertColumn: %.1f ms\nSetDataItemCount: %.1f ms\nFill cells: %.1f ms\nTotal: %.1f ms"),
+        nRows, nColumns,
+        PerfTickToMs(nTick1 - nTick0),
+        PerfTickToMs(nTick2 - nTick1),
+        PerfTickToMs(nTick3 - nTick2),
+        PerfTickToMs(nTick3 - nTick0));
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestLoadSparse(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    const size_t nRows = 100000;    //10万行（仅声明行数，不整体填充）
+    const size_t nColumns = 10;     //10列
+    const size_t nFillRows = 1000;  //稀疏填充：仅写第 0 列的前 1000 行
+
+    pListCtrl->SetEnableRefresh(false);
+    pListCtrl->DeleteAllColumns();
+    pListCtrl->DeleteAllDataItems();
+
+    //1) 添加列
+    const int64_t nTick0 = GetPerfTick();
+    for (size_t nColumn = 0; nColumn < nColumns; ++nColumn) {
+        ui::ListCtrlColumn columnInfo;
+        columnInfo.nColumnWidth = 120;
+        columnInfo.text = ui::StringUtil::Printf(_T("Col %zu"), nColumn);
+        columnInfo.bShowCheckBox = false;
+        columnInfo.nImageId = -1;
+        pListCtrl->InsertColumn(-1, columnInfo);
+    }
+    const int64_t nTick1 = GetPerfTick();
+
+    //2) 仅设置行数（虚表：不写单元格，验证分页存储的懒分配——未写入的页不分配内存）
+    pListCtrl->SetDataItemCount(nRows);
+    const int64_t nTick2 = GetPerfTick();
+
+    //3) 稀疏填充：只写第 0 列的前 nFillRows 行（其余单元格不写入）
+    for (size_t nRow = 0; nRow < nFillRows; ++nRow) {
+        ui::ListCtrlSubItemData subItemData;
+        subItemData.text = ui::StringUtil::Printf(_T("s-%zu-0"), nRow);
+        subItemData.bShowCheckBox = false;
+        subItemData.nImageId = -1;
+        pListCtrl->SetSubItemData(nRow, 0, subItemData);
+    }
+    const int64_t nTick3 = GetPerfTick();
+
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+    m_bStressDataLoaded = true;
+
+    DString msg = ui::StringUtil::Printf(
+        _T("Load sparse data\nRows=%zu, Columns=%zu, Filled cells=%zu (column 0, first %zu rows)\n")
+        _T("InsertColumn: %.1f ms\nSetDataItemCount: %.1f ms\nFill cells: %.1f ms\nTotal: %.1f ms"),
+        nRows, nColumns, nFillRows, nFillRows,
+        PerfTickToMs(nTick1 - nTick0),
+        PerfTickToMs(nTick2 - nTick1),
+        PerfTickToMs(nTick3 - nTick2),
+        PerfTickToMs(nTick3 - nTick0));
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestMemory(ui::ListCtrl* pListCtrl)
+{
+    (void)pListCtrl;    //仅读取进程内存，不需要操作控件
+    uint64_t nWorkingSet = 0;
+    uint64_t nPeakWorkingSet = 0;
+    uint64_t nPrivateUsage = 0;
+    if (!GetProcessMemorySnapshot(nWorkingSet, nPeakWorkingSet, nPrivateUsage)) {
+        ui::SystemUtil::ShowMessageBox(this,
+            _T("Memory reading is not supported on this platform."),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+    const double dMB = 1024.0 * 1024.0;
+    DString msg = ui::StringUtil::Printf(
+        _T("Process memory\nWorking set: %.1f MB\nPeak working set: %.1f MB\nPrivate usage: %.1f MB\n")
+        _T("\nNote: peak is measured since process start;\nrestart the app to measure one scenario alone."),
+        (double)nWorkingSet / dMB,
+        (double)nPeakWorkingSet / dMB,
+        (double)nPrivateUsage / dMB);
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestInsert(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    if (!m_bStressDataLoaded) {
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_NEED_LOAD")),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+    const size_t nInsertCount = 1000;   //插入1000行
+
+    pListCtrl->SetEnableRefresh(false);
+    const int64_t nTick0 = GetPerfTick();
+    //始终在列表的中间位置插入（触发中间位置的搬移，验证增删改性能不降级）
+    for (size_t n = 0; n < nInsertCount; ++n) {
+        const size_t nInsertPos = pListCtrl->GetDataItemCount() / 2;
+        ui::ListCtrlSubItemData subItemData;
+        subItemData.text = _T("insert");
+        subItemData.bShowCheckBox = false;
+        subItemData.nImageId = -1;
+        pListCtrl->InsertDataItem(nInsertPos, subItemData);
+    }
+    const int64_t nTick1 = GetPerfTick();
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+
+    const double dTotalMs = PerfTickToMs(nTick1 - nTick0);
+    DString msg = ui::StringUtil::Printf(
+        _T("Insert rows at middle\nCount: %zu\nTotal: %.1f ms\nAverage: %.3f ms/row"),
+        nInsertCount, dTotalMs, dTotalMs / (double)nInsertCount);
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestDelete(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    if (!m_bStressDataLoaded) {
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_NEED_LOAD")),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+    const size_t nDeleteCount = 500;    //删除500行
+
+    pListCtrl->SetEnableRefresh(false);
+    const int64_t nTick0 = GetPerfTick();
+    //循环删除中间位置的行（触发中间位置的搬移，验证批量删除性能不降级）
+    for (size_t n = 0; n < nDeleteCount; ++n) {
+        const size_t nDeleteIndex = pListCtrl->GetDataItemCount() / 2;
+        pListCtrl->DeleteDataItem(nDeleteIndex);
+    }
+    const int64_t nTick1 = GetPerfTick();
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+
+    const double dTotalMs = PerfTickToMs(nTick1 - nTick0);
+    DString msg = ui::StringUtil::Printf(
+        _T("Delete rows at middle\nCount: %zu\nTotal: %.1f ms\nAverage: %.3f ms/row"),
+        nDeleteCount, dTotalMs, dTotalMs / (double)nDeleteCount);
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestDeleteBatch(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    if (!m_bStressDataLoaded) {
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_NEED_LOAD")),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+    const size_t nDeleteCount = 500;    //批量删除500行
+    const size_t nTotal = pListCtrl->GetDataItemCount();
+    if (nTotal == 0) {
+        return;
+    }
+
+    //构造500个"乱序"的待删除显示索引：均匀分布于整个列表，覆盖多个存储页，验证单趟压缩与页回收
+    std::vector<size_t> deleteIndexs;
+    deleteIndexs.reserve(nDeleteCount);
+    const size_t nStep = (nTotal > nDeleteCount) ? (nTotal / nDeleteCount) : 1;
+    for (size_t n = 0; n < nDeleteCount; ++n) {
+        deleteIndexs.push_back((n * nStep) % nTotal);
+    }
+
+    pListCtrl->SetEnableRefresh(false);
+    const int64_t nTick0 = GetPerfTick();
+    const size_t nDeleted = pListCtrl->DeleteDataItems(deleteIndexs);
+    const int64_t nTick1 = GetPerfTick();
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+
+    const double dTotalMs = PerfTickToMs(nTick1 - nTick0);
+    DString msg = ui::StringUtil::Printf(
+        _T("Batch delete rows (unordered)\nRequested: %zu\nDeleted: %zu\nTotal: %.1f ms"),
+        nDeleteCount, nDeleted, dTotalMs);
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestCompact(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    if (!m_bStressDataLoaded) {
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_NEED_LOAD")),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+
+    //压缩前的内存快照（内存读数仅 Windows 平台提供，其他平台返回 false）
+    uint64_t nWorkingSet0 = 0, nPeakWorkingSet0 = 0, nPrivateUsage0 = 0;
+    const bool bHasMemory = GetProcessMemorySnapshot(nWorkingSet0, nPeakWorkingSet0, nPrivateUsage0);
+
+    //执行存储压缩（重编号 + 整体压缩），并测量耗时
+    pListCtrl->SetEnableRefresh(false);
+    const int64_t nTick0 = GetPerfTick();
+    pListCtrl->CompactStorage();
+    const int64_t nTick1 = GetPerfTick();
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+
+    //压缩后的内存快照
+    uint64_t nWorkingSet1 = 0, nPeakWorkingSet1 = 0, nPrivateUsage1 = 0;
+    GetProcessMemorySnapshot(nWorkingSet1, nPeakWorkingSet1, nPrivateUsage1);
+
+    const double dTotalMs = PerfTickToMs(nTick1 - nTick0);
+    DString msg;
+    if (bHasMemory) {
+        const double dMb = 1024.0 * 1024.0;
+        msg = ui::StringUtil::Printf(
+            _T("Compact storage\nRows: %zu\nTotal: %.1f ms\nWorking set: %.1f -> %.1f MB\nPrivate: %.1f -> %.1f MB"),
+            pListCtrl->GetDataItemCount(), dTotalMs,
+            (double)nWorkingSet0 / dMb, (double)nWorkingSet1 / dMb,
+            (double)nPrivateUsage0 / dMb, (double)nPrivateUsage1 / dMb);
+    }
+    else {
+        //非 Windows 平台不支持内存读数
+        msg = ui::StringUtil::Printf(
+            _T("Compact storage\nRows: %zu\nTotal: %.1f ms\n(Working set reading is not supported on this platform.)"),
+            pListCtrl->GetDataItemCount(), dTotalMs);
+    }
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestSort(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    if (!m_bStressDataLoaded) {
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_NEED_LOAD")),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+    if (pListCtrl->GetColumnCount() == 0) {
+        return;
+    }
+
+    pListCtrl->SetEnableRefresh(false);
+    const int64_t nTick0 = GetPerfTick();
+    const bool bRet = pListCtrl->SortDataItems(0, true);    //按第1列升序排序（整表排序）
+    const int64_t nTick1 = GetPerfTick();
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+
+    DString msg = ui::StringUtil::Printf(
+        _T("Sort whole table (column 0, ascending)\nResult: %s\nTotal: %.1f ms"),
+        bRet ? _T("true") : _T("false"),
+        PerfTickToMs(nTick1 - nTick0));
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestRepaint(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    if (!m_bStressDataLoaded) {
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_NEED_LOAD")),
+            ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+        return;
+    }
+    const int32_t nFrames = 20;         //滚动并重绘的帧数
+    const size_t nStep = 200;           //每帧向下滚动的行数
+    const size_t nDataCount = pListCtrl->GetDataItemCount();
+    if (nDataCount == 0) {
+        return;
+    }
+
+    double dTotalMs = 0.0;
+    size_t nItemIndex = 0;
+    for (int32_t nFrame = 0; nFrame < nFrames; ++nFrame) {
+        if (nItemIndex >= nDataCount) {
+            nItemIndex = 0;
+        }
+        //滚动到指定行（置顶），再强制同步重绘可见区域，测量"滚动 + 绘制"的单帧耗时
+        pListCtrl->EnsureDataItemVisible(nItemIndex, true);
+        const int64_t nTick0 = GetPerfTick();
+        pListCtrl->Refresh(true);
+        const int64_t nTick1 = GetPerfTick();
+        dTotalMs += PerfTickToMs(nTick1 - nTick0);
+        nItemIndex += nStep;
+    }
+
+    DString msg = ui::StringUtil::Printf(
+        _T("Scroll & repaint\nFrames: %d\nTotal: %.1f ms\nAverage: %.3f ms/frame"),
+        nFrames, dTotalMs, dTotalMs / (double)nFrames);
+    ui::SystemUtil::ShowMessageBox(this, msg, ui::GlobalManager::GetTextById(_T("STRID_LISTCTRL_STRESS_TEST")));
+}
+
+void MainForm::StressTestRestore(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    pListCtrl->SetEnableRefresh(false);
+    pListCtrl->DeleteAllColumns();
+    pListCtrl->DeleteAllDataItems();
+    InsertItemData(400, 9, (int32_t)m_imageId);
+    pListCtrl->SetEnableRefresh(true);
+    pListCtrl->Refresh(true);
+    m_bStressDataLoaded = false;
 }
 
 void MainForm::TestListCtrlLoading(ui::ListCtrl* pListCtrl)
@@ -642,6 +1362,31 @@ void MainForm::TestListCtrlLoading(ui::ListCtrl* pListCtrl)
             return true;
             });
     }
+
+    //骨架屏测试：列表骨架屏
+    pLoadingBtn = dynamic_cast<ui::Button*>(FindControl(_T("loading_skeleton_btn1")));
+    if (pLoadingBtn != nullptr) {
+        pLoadingBtn->AttachClick([pListCtrl, this](const ui::EventArgs& args) {
+            OnTestLoadingSkeleton(false);
+            return true;
+            });
+    }
+    //骨架屏测试：卡片骨架屏
+    pLoadingBtn = dynamic_cast<ui::Button*>(FindControl(_T("loading_skeleton_btn2")));
+    if (pLoadingBtn != nullptr) {
+        pLoadingBtn->AttachClick([pListCtrl, this](const ui::EventArgs& args) {
+            OnTestLoadingSkeleton(true);
+            return true;
+            });
+    }
+    //停止骨架屏占位
+    pLoadingBtn = dynamic_cast<ui::Button*>(FindControl(_T("loading_stop_btn")));
+    if (pLoadingBtn != nullptr) {
+        pLoadingBtn->AttachClick([pListCtrl, this](const ui::EventArgs& args) {
+            OnStopLoadingSkeleton();
+            return true;
+            });
+    }
 }
 
 void MainForm::OnTestLoadingProgress()
@@ -724,6 +1469,111 @@ void MainForm::OnTestLoadingProgress()
     pListCtrl->StartLoading(33, -1);
 }
 
+void MainForm::OnTestLoadingSkeleton(bool bCardLayout)
+{
+    ui::ListCtrl* pListCtrl = dynamic_cast<ui::ListCtrl*>(FindControl(_T("list_ctrl")));
+    ASSERT(pListCtrl != nullptr);
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    //若上一轮骨架屏因异常卡在loading状态，先强制复位，否则后续所有点击都会被这里挡住
+    if (pListCtrl->IsLoading()) {
+        pListCtrl->StopLoading();
+    }
+
+    //骨架屏的占位界面完全由XML描述，C++侧只负责指定皮肤与超时兜底：
+    //  width='0' height='0' + 皮肤根容器的 stretch = 铺满ListCtrl（clamp 生效），无需算尺寸
+    //  不指定 animation_control：骨架屏是静态占位块，不存在"动画播完"的时刻
+    //  不设置 auto_stop：必须由业务侧根据 m_nElapsedTimeMs 主动结束
+    const DString strSkin = bCardLayout ? _T("loading_skeleton_card.xml") : _T("loading_skeleton_list.xml");
+    const DString strLoading = _T("file='") + strSkin + _T("' width='0' height='0' offset_x='-1' offset_y='-1' ") +
+        _T("valign='center' halign='center' fade='255'");
+    if (!pListCtrl->SetLoadingAttribute(strLoading)) {
+        OutputDebugLog(_T("SetLoadingAttribute failed, skin=") + strSkin);
+        return;
+    }
+
+    pListCtrl->DetachEvent(ui::kEventLoadingStart);
+    pListCtrl->DetachEvent(ui::kEventLoading);
+    pListCtrl->DetachEvent(ui::kEventLoadingStop);
+
+    pListCtrl->AttachLoadingStart([this](const ui::EventArgs& args) {
+        ui::ControlLoadingStatus* pLoadingStatus = (ui::ControlLoadingStatus*)args.wParam;
+        if (pLoadingStatus != nullptr) {
+            //骨架屏的占位根容器，可用于动态增删占位块。
+            //注意：StopLoading时这个Box会被销毁，句柄随之失效，不能跨事件保存。
+            ui::ControlPtrT<ui::Box> pLoadingUiRootBox = pLoadingStatus->m_pLoadingUiRootBox;
+            OutputDebugLog(_T("skeleton loading start"));
+        }
+        return true;
+        });
+
+    pListCtrl->AttachLoading([pListCtrl, this](const ui::EventArgs& args) {
+        bool bRet = true;
+        ui::ControlLoadingStatus* pLoadingStatus = (ui::ControlLoadingStatus*)args.wParam;
+        if (pLoadingStatus == nullptr) {
+            return false;
+        }
+
+        //超时兜底：nMaxCount只是回调次数上限，真正的时间超时必须自己判断。
+        //没有这一步，骨架屏会一直停在那里，比转圈更糟——用户失去了"还在加载"的确信感。
+        const uint64_t nTimeoutMs = 5000;
+        if (pLoadingStatus->m_nElapsedTimeMs >= nTimeoutMs) {
+            pLoadingStatus->m_bStopLoading = true;
+            return true;
+        }
+
+        //呼吸动画：让"占位块"呼吸，**不能给根容器设 alpha**。
+        //原因：ControlLoading 的 loading 层是叠加绘制而不是遮罩，根容器的 bkcolor 承担遮住
+        //下方列表内容的职责。一旦根容器 alpha < 255，底板也跟着半透明，下方内容会透出来
+        //（表现为骨架屏只有灰块、下方旧列表隐约可见）。
+        //正确做法：根容器固定 255，只遍历它的子控件（占位块）调 SetAlpha。
+        //如需"尊重减少动态效果"的无障碍设置，可在此处判断系统偏好后跳过本段。
+        ui::ControlPtrT<ui::Box> pLoadingUiRootBox = pLoadingStatus->m_pLoadingUiRootBox;
+        if (pLoadingUiRootBox != nullptr) {
+            const double fSeconds = (double)pLoadingStatus->m_nElapsedTimeMs / 1000.0;
+            //约2秒一个周期，alpha 在 140~255 之间起伏（不降到太低，保持占位块清晰可辨）
+            const uint8_t nAlpha = (uint8_t)(197.5 + 57.5 * std::sin(fSeconds * 3.1415926));
+            for (size_t i = 0; i < pLoadingUiRootBox->GetItemCount(); ++i) {
+                ui::Control* pChild = pLoadingUiRootBox->GetItemAt(i);
+                if (pChild != nullptr) {
+                    pChild->SetAlpha(nAlpha);
+                }
+            }
+        }
+        return bRet;
+        });
+
+    pListCtrl->AttachLoadingStop([pListCtrl](const ui::EventArgs& args) {
+        //解除注册的回调，避免影响其他业务
+        pListCtrl->DetachEvent(ui::kEventLoadingStart);
+        pListCtrl->DetachEvent(ui::kEventLoading);
+        pListCtrl->DetachEvent(ui::kEventLoadingStop);
+        return true;
+        });
+
+    //33ms一次心跳；nMaxCount=-1表示不靠次数停止，完全由上面的超时逻辑控制
+    if (!pListCtrl->StartLoading(33, -1)) {
+        OutputDebugLog(_T("StartLoading failed, skin=") + strSkin);
+    }
+}
+
+void MainForm::OnStopLoadingSkeleton()
+{
+    ui::ListCtrl* pListCtrl = dynamic_cast<ui::ListCtrl*>(FindControl(_T("list_ctrl")));
+    ASSERT(pListCtrl != nullptr);
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    //注意：Control::StartLoading 内部会 SetEnabled(false)，Control::StopLoading 内部会
+    // SetEnabled(true)。如果骨架屏因为任何原因卡在 loading 状态（例如 XML 解析失败导致
+    // 定时器没跑起来），ListCtrl 会一直处于禁用状态，下方整个列表区域都点不动。
+    //所以这里不判断 IsLoading()，无条件停止并恢复可用状态，作为兜底。
+    pListCtrl->StopLoading();
+    pListCtrl->SetEnabled(true);
+    OutputDebugLog(_T("skeleton loading stopped manually"));
+}
+
 void MainForm::OnColumnChanged(size_t nColumnId)
 {
     ui::ListCtrl* pListCtrl = dynamic_cast<ui::ListCtrl*>(FindControl(_T("list_ctrl")));
@@ -777,7 +1627,7 @@ void MainForm::OnColumnChanged(size_t nColumnId)
 
     bool bColumnDataHasCheckBox = false;
     bool bColumnDataHasIcon = false;
-    bool bColumnEditable = pListCtrl->IsSubItemEditable(0, 0);
+    bool bColumnEditable = pListCtrl->IsSubItemEditable(0, pListCtrl->GetColumnIndex(nColumnId));
     ui::ListCtrlItem* pItem = pListCtrl->GetFirstDisplayItem();
     if (pItem != nullptr) {
         ui::ListCtrlSubItem* pSubItem = pItem->GetSubItem(pListCtrl->GetColumnIndex(nColumnId));
@@ -815,6 +1665,15 @@ void MainForm::OnColumnChanged(size_t nColumnId)
     else {
         pColumnTextAlignLeft->Selected(true, false);
     }
+
+    //单元格换行状态：与当前列单元格的文本格式(TEXT_SINGLELINE位)保持一致
+    ui::Option* pCellSingleLine = dynamic_cast<ui::Option*>(FindControl(_T("cell_single_line")));
+    ui::Option* pCellWordWrap = dynamic_cast<ui::Option*>(FindControl(_T("cell_word_wrap")));
+    if ((pCellSingleLine != nullptr) && (pCellWordWrap != nullptr)) {
+        bool bSingleLine = (nTextFormat & ui::TEXT_SINGLELINE) != 0;
+        pCellSingleLine->Selected(bSingleLine, false);
+        pCellWordWrap->Selected(!bSingleLine, false);
+    }
 }
 
 void MainForm::InsertItemData(int32_t nRows, int32_t nColumns, int32_t nImageId)
@@ -824,6 +1683,7 @@ void MainForm::InsertItemData(int32_t nRows, int32_t nColumns, int32_t nImageId)
     if (pListCtrl == nullptr) {
         return;
     }
+
     const size_t columnCount = nColumns;
     const size_t rowCount = nRows;
     bool bShowCheckBox = true; //是否显示CheckBox
@@ -838,6 +1698,28 @@ void MainForm::InsertItemData(int32_t nRows, int32_t nColumns, int32_t nImageId)
         columnInfo.nImageId = nImageId;
         pListCtrl->InsertColumn(-1, columnInfo);
     }
+    //演示：列级比较模式（对Report视图的表头点击排序生效）
+    //说明：排序方式按列声明（SetColumnSortFlag/SetColumnSortFlagById），表头点击排序时会自动使用该列声明的比较模式，
+    //      从而由"列的语义"决定比较方式，而不是按单元格当前状态推断
+    pListCtrl->SetColumnSortFlag(1, ui::ListCtrlSubItemSortFlag::kSortByProgress);      //第2列（进度条列）按进度值排序
+    if (columnCount > 3) {
+        pListCtrl->SetColumnSortFlag(3, ui::ListCtrlSubItemSortFlag::kSortByTextAsNumber);//第4列（数值文本列）按数值大小排序
+    }
+    if (columnCount > 4) {
+        pListCtrl->SetColumnSortFlag(4, ui::ListCtrlSubItemSortFlag::kSortByTextAsDate);//第5列（日期文本列）按日期时间先后排序
+    }
+    //C3：按列声明单元格编辑器类型（提交编辑时按该类型校验输入内容）
+    //      kEditNumber：仅允许空串或合法的十进制数值；kEditDate：仅允许空串或 yyyy-mm-dd / yyyy/mm/dd
+    pListCtrl->SetColumnEditorType(1, ui::ListCtrlEditorType::kEditNumber);      //第2列（进度条列）按数值校验
+    if (columnCount > 3) {
+        pListCtrl->SetColumnEditorType(3, ui::ListCtrlEditorType::kEditNumber);//第4列（数值文本列）按数值校验
+    }
+    if (columnCount > 4) {
+        pListCtrl->SetColumnEditorType(4, ui::ListCtrlEditorType::kEditDate);  //第5列（日期文本列）按日期校验
+    }
+    //C3后续项：按列声明下拉候选编辑器（kEditCombo）
+    //      勾选框状态保存在成员变量中，数据重新载入后按该状态重新应用
+    SetComboColumnEditor(pListCtrl, m_bComboEditor);
     //填充数据
     pListCtrl->SetDataItemCount(rowCount);
     ASSERT(pListCtrl->GetDataItemCount() == rowCount);
@@ -851,29 +1733,752 @@ void MainForm::InsertItemData(int32_t nRows, int32_t nColumns, int32_t nImageId)
             if (columnIndex == 0) {
                 subItemData.text += _T("-1234567890-ABCDEFG-1234567890-abcdefg");
             }
+            else if (columnIndex == 1) {
+                //演示：单元格进度条（第2列按进度条方式显示）
+                subItemData.nProgress = (int32_t)((itemIndex * 7 + 15) % 101);
+                subItemData.text = ui::StringUtil::Printf(_T("%d%%"), subItemData.nProgress);
+                subItemData.nImageId = -1;
+            }
+            else if (columnIndex == 2) {
+                //演示：单元格富文本（第3列按富文本方式显示）
+                subItemData.bRichText = true;
+                subItemData.text = ui::StringUtil::Printf(_T("<b>Row %03d</b> <font color=\"#1E90FF\">Col %02d</font>"), itemIndex, columnIndex);
+                subItemData.nImageId = -1;
+            }
+            else if (columnIndex == 3) {
+                //演示：列级比较模式中的"数值文本"（见 SetColumnSortFlag(kSortByTextAsNumber)）
+                //文本为纯数字，点击该列表头时按数值大小排序（如 10 > 9），而不是按字典序（如 "10" < "9"）
+                subItemData.text = ui::StringUtil::Printf(_T("%d"), (int32_t)((itemIndex * 13 + 7) % 1000));
+            }
+            else if (columnIndex == 4) {
+                //演示：列级比较模式中的"日期时间文本"（见 SetColumnSortFlag(kSortByTextAsDate)）
+                //日期不补零，点击该列表头时按日期先后排序（如 2020-3-7 在 2020-10-1 之前），
+                //而不是按字典序（字典序会认为 "2020-10-1" 在 "2020-3-7" 之前）
+                int32_t nYear = 2020 + (int32_t)((itemIndex * 7) % 5);
+                int32_t nMonth = 1 + (int32_t)((itemIndex * 5) % 12);
+                int32_t nDay = 1 + (int32_t)((itemIndex * 11) % 28);
+                subItemData.text = ui::StringUtil::Printf(_T("%d-%d-%d"), nYear, nMonth, nDay);
+            }
             pListCtrl->SetSubItemData(itemIndex, columnIndex, subItemData);
         }
     }
+    //演示：冻结首列（与界面上的"冻结首列"选项状态保持一致）
+    pListCtrl->SetFrozenColumnCount(1);
     //排序，默认为升序
     pListCtrl->SortDataItems(0, true);
 
     //设置特殊属性
     if (nRows > 100) {
+        //置顶行
         pListCtrl->SetDataItemAlwaysAtTop(100, 0);
-        pListCtrl->SetDataItemAlwaysAtTop(101, 1);
+        pListCtrl->SetSubItemBkColor(100, 0, ui::UiColor(ui::UiColors::MistyRose));
+        pListCtrl->SetSubItemBkColor(100, 3, ui::UiColor(ui::UiColors::MistyRose));
 
-        pListCtrl->SetDataItemVisible(103, false);
-        pListCtrl->SetDataItemHeight(1, 100, true);
-        pListCtrl->SetDataItemHeight(2, 200, true);
+        //调整行高
+        pListCtrl->SetDataItemHeight(21, 100, true);
+        pListCtrl->SetDataItemHeight(22, 200, true);
 
-        //pListCtrl->SetSubItemBkColor(100, 0, ui::UiColor(ui::UiColors::MistyRose));
-        //pListCtrl->SetSubItemBkColor(101, 0, ui::UiColor(ui::UiColors::MistyRose));
-        //pListCtrl->SetSubItemBkColor(102, 0, ui::UiColor(ui::UiColors::MistyRose));
-        //pListCtrl->SetSubItemBkColor(103, 0, ui::UiColor(ui::UiColors::MistyRose));
-        //pListCtrl->SetSubItemBkColor(104, 0, ui::UiColor(ui::UiColors::MistyRose));
+        //调整行数据是否可见
+        pListCtrl->SetDataItemVisible(23, false);
+    }
+    //保持"所有列可编辑"勾选框的状态：数据被重新载入后，按当前状态重新应用一次
+    if (m_bAllColumnsEditable) {
+        SetAllColumnsEditable(pListCtrl, true);
     }
     //重绘
     UpdateWindow();
+}
+
+void MainForm::TestRefreshSubItem(ui::ListCtrl* pListCtrl)
+{
+    //演示：单格刷新（RefreshSubItem）
+    //场景：进度类列（第 2 列，列索引为 1）的进度来自后台任务，应用层自己维护进度值（m_progressValues）；
+    //      后台进度更新时，先用 SetEnableRefresh(false) 包裹数据写入（避免数据变化触发整行自动刷新界面），
+    //      再调用 RefreshSubItem 只刷新对应的单元格。
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    const size_t nProgressColumnIndex = 1;  //进度列的索引号（第 2 列）
+    const size_t nMaxTestRowCount = 20;     //参与演示的行数（避免演示数据过多影响性能）
+    const size_t nDataCount = pListCtrl->GetDataItemCount();
+
+    //初始化进度值（模拟后台数据源，取值范围[0, 100]）
+    m_progressValues.assign(nDataCount, 0);
+    for (size_t nRow = 0; nRow < nDataCount; ++nRow) {
+        m_progressValues[nRow] = (int32_t)((nRow * 7 + 15) % 101);
+    }
+
+    //定时器回调：在UI线程中执行，可以安全访问控件
+    auto refreshCallback = [this, pListCtrl, nProgressColumnIndex, nMaxTestRowCount]() {
+        for (size_t nRow = 0; nRow < nMaxTestRowCount; ++nRow) {
+            if (nRow >= m_progressValues.size()) {
+                break;
+            }
+            //模拟后台进度推进（到达 100 后回到 0，循环演示）
+            int32_t nProgress = m_progressValues[nRow] + 5;
+            if (nProgress > 100) {
+                nProgress = 0;
+            }
+            m_progressValues[nRow] = nProgress;
+
+            //更新底层存储的单元格数据，但不刷新界面（避免整行刷新界面）
+            bool bOldRefresh = pListCtrl->SetEnableRefresh(false);
+            pListCtrl->SetSubItemProgress(nRow, nProgressColumnIndex, nProgress);
+            pListCtrl->SetEnableRefresh(bOldRefresh);
+
+            //只刷新这一个单元格，填充回调会把最新进度值写入该单元格
+            //（如果该单元格不在可见范围内，RefreshSubItem 返回 false，无需额外处理）
+            pListCtrl->RefreshSubItem(nRow, nProgressColumnIndex);
+        }
+    };
+    //每 800ms 触发一次，重复执行；定时器与ListCtrl的生命周期绑定，控件销毁后自动取消
+    m_refreshSubItemFlag.Cancel();
+    ui::GlobalManager::Instance().Timer().AddTimer(m_refreshSubItemFlag.GetWeakFlag(), refreshCallback, 800);
+}
+
+void MainForm::StopRefreshSubItem(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    //取消定时器（避免关闭演示后残留定时器继续刷新）
+    m_refreshSubItemFlag.Cancel();
+}
+
+void MainForm::InitFillRefreshTests(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+
+    //"单元格填充回调（悬停按钮）"开关：控制 OnReportViewItemFilled 是否生效（默认关闭）
+    ui::CheckBox* pItemFilled = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_enable_report_view_item_filled")));
+    if (pItemFilled != nullptr) {
+        pItemFilled->Selected(m_bReportViewItemFilled, false);
+        ui::ControlPtrT<ui::ListCtrl> spListCtrl(pListCtrl);
+        pItemFilled->AttachSelect([this, spListCtrl](const ui::EventArgs&) {
+            m_bReportViewItemFilled = true;
+            if (spListCtrl != nullptr) {
+                spListCtrl->Refresh();//需要主动刷新才能立即生效
+            }
+            return true;
+            });
+        pItemFilled->AttachUnSelect([this, spListCtrl](const ui::EventArgs&) {
+            m_bReportViewItemFilled = false;
+            return true;
+            });
+    }
+
+    //"单格刷新演示"开关：勾选时启动定时器并注册填充回调；取消勾选时停止并解绑
+    ui::CheckBox* pRefreshSubItem = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_enable_refresh_subitem")));
+    if (pRefreshSubItem != nullptr) {
+        pRefreshSubItem->Selected(false, false);
+        ui::ControlPtrT<ui::ListCtrl> spListCtrl(pListCtrl);
+        pRefreshSubItem->AttachSelect([this, spListCtrl](const ui::EventArgs&) {
+            if (spListCtrl.get() != nullptr) {
+                TestRefreshSubItem(spListCtrl.get());
+            }
+            return true;
+            });
+        pRefreshSubItem->AttachUnSelect([this, spListCtrl](const ui::EventArgs&) {
+            if (spListCtrl.get() != nullptr) {
+                StopRefreshSubItem(spListCtrl.get());
+            }
+            return true;
+            });
+    }
+}
+
+void MainForm::TestColumnVisibleApi(ui::ListCtrl* pListCtrl)
+{
+    //测试：ListCtrl级别的列显隐接口（SetColumnVisible/IsColumnVisible）与列显隐变化事件（kEventColumnVisibleChanged）
+    //说明：界面上"第2列显隐"的两个选项，通过ListCtrl::SetColumnVisible接口来隐藏/显示第2列
+    ui::Option* pHideColumn = dynamic_cast<ui::Option*>(FindControl(_T("column_visible_hide")));
+    ui::Option* pShowColumn = dynamic_cast<ui::Option*>(FindControl(_T("column_visible_show")));
+    ASSERT(pHideColumn != nullptr);
+    ASSERT(pShowColumn != nullptr);
+    if ((pListCtrl == nullptr) || (pHideColumn == nullptr) || (pShowColumn == nullptr)) {
+        return;
+    }
+    const size_t nColumnIndex = 1;  //第2列（列索引为1）
+    const size_t nColumnId = pListCtrl->GetColumnId(nColumnIndex);
+    if (nColumnId == ui::Box::InvalidIndex) {
+        return;
+    }
+
+    //按该列的实际显示状态，同步界面上选项的选中状态
+    auto updateOptionSelected = [pListCtrl, nColumnIndex, pHideColumn, pShowColumn]() {
+        bool bColumnVisible = pListCtrl->IsColumnVisible(nColumnIndex);
+        pHideColumn->Selected(!bColumnVisible, false);
+        pShowColumn->Selected(bColumnVisible, false);
+        };
+    updateOptionSelected();
+
+    //监听列显隐变化事件：该列的显示状态变化时（包括从其他入口变化，比如表头项接口），同步界面的选中状态
+    pListCtrl->AttachColumnVisibleChanged([nColumnId, updateOptionSelected](const ui::EventArgs& args) {
+        if (args.wParam == (WPARAM)nColumnId) {
+            updateOptionSelected();
+        }
+        return true;
+        });
+
+    //隐藏第2列
+    pHideColumn->AttachSelect([pListCtrl, nColumnIndex](const ui::EventArgs&) {
+        pListCtrl->SetColumnVisible(nColumnIndex, false);
+        return true;
+        });
+    //显示第2列
+    pShowColumn->AttachSelect([pListCtrl, nColumnIndex](const ui::EventArgs&) {
+        pListCtrl->SetColumnVisible(nColumnIndex, true);
+        return true;
+        });
+    //判断第2列当前是否显示：pListCtrl->IsColumnVisible(nColumnIndex)
+}
+
+namespace
+{
+/** 自定义排序函数：先按文本长度升序，长度相同时按文本字典序升序
+*/
+bool CustomCompareByTextLength(const ui::ListCtrlSubItemData2& a,
+                               const ui::ListCtrlSubItemData2& b,
+                               const ui::ListCtrlCompareParam& /*param*/)
+{
+    const size_t nLenA = ui::StringUtil::StringLen(a.text.c_str());
+    const size_t nLenB = ui::StringUtil::StringLen(b.text.c_str());
+    if (nLenA != nLenB) {
+        return nLenA < nLenB;
+    }
+    return ui::StringUtil::StringCompare(a.text.c_str(), b.text.c_str()) < 0;
+}
+} // namespace
+
+void MainForm::InitEventStateTests(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+
+    //第1项：列布局事件（列宽变化 / 列顺序变化 / 列排序变化），在"最近列事件"标签中显示
+    pListCtrl->AttachColumnWidthChanged([this, pListCtrl](const ui::EventArgs& args) {
+        const size_t nColumnIndex = pListCtrl->GetColumnIndex((size_t)args.wParam);
+        const size_t nRelatedIndex = pListCtrl->GetColumnIndex((size_t)args.lParam);
+        const DString strRelated = (nRelatedIndex == ui::Box::InvalidIndex) ?
+            DString(_T("none")) : ui::StringUtil::Printf(_T("%zu"), nRelatedIndex);
+        UpdateColumnEventLabel(ui::StringUtil::Printf(_T("kEventColumnWidthChanged: columnIndex=%zu, relatedColumnIndex=%s"),
+            nColumnIndex, strRelated.c_str()));
+        return true;
+        });
+    pListCtrl->AttachColumnOrderChanged([this](const ui::EventArgs& /*args*/) {
+        UpdateColumnEventLabel(_T("kEventColumnOrderChanged"));
+        return true;
+        });
+    pListCtrl->AttachColumnSorted([this, pListCtrl](const ui::EventArgs& args) {
+        UpdateColumnEventLabel(ui::StringUtil::Printf(_T("kEventColumnSorted: columnIndex=%zu, order=%s"),
+            pListCtrl->GetColumnIndex((size_t)args.wParam), (args.lParam == 0) ? _T("Desc") : _T("Asc")));
+        return true;
+        });
+
+    //第12项：编辑状态事件（进入编辑 / 结束编辑）
+    pListCtrl->AttachEnterEdit([this, pListCtrl](const ui::EventArgs& args) {
+        ui::Label* pLabel = dynamic_cast<ui::Label*>(FindControl(_T("edit_state_label")));
+        if (pLabel == nullptr) {
+            return true;
+        }
+        ui::ListCtrlEditParam* pEditParam = (ui::ListCtrlEditParam*)args.wParam;
+        if (pEditParam != nullptr) {
+            pLabel->SetText(ui::StringUtil::Printf(_T("kEventEnterEdit: row=%zu, columnIndex=%zu"),
+                pEditParam->nItemIndex, pListCtrl->GetColumnIndex(pEditParam->nColumnId)));
+        }
+        else {
+            pLabel->SetText(_T("kEventEnterEdit"));
+        }
+        return true;
+        });
+    pListCtrl->AttachLeaveEdit([this](const ui::EventArgs& /*args*/) {
+        ui::Label* pLabel = dynamic_cast<ui::Label*>(FindControl(_T("edit_state_label")));
+        if (pLabel != nullptr) {
+            pLabel->SetText(_T("kEventLeaveEdit"));
+        }
+        return true;
+        });
+
+    //第10项：自定义排序（SetSortCompareFunction 替换默认比较函数）
+    ui::Button* pCustomSortBtn = dynamic_cast<ui::Button*>(FindControl(_T("custom_sort_btn")));
+    if (pCustomSortBtn != nullptr) {
+        pCustomSortBtn->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetSortCompareFunction(CustomCompareByTextLength, nullptr);
+            const bool bRet = pListCtrl->SortDataItems(0, true);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetSortCompareFunction(CustomCompareByTextLength) done\nSortDataItems(0, true) -> %s"),
+                    bRet ? _T("true") : _T("false")),
+                _T("Custom Sort"));
+            return true;
+            });
+    }
+}
+
+void MainForm::UpdateColumnEventLabel(const DString& strEvent)
+{
+    ui::Label* pLabel = dynamic_cast<ui::Label*>(FindControl(_T("column_event_label")));
+    if (pLabel != nullptr) {
+        pLabel->SetText(strEvent);
+    }
+}
+
+void MainForm::UpdateCellStateLabel(ui::ListCtrl* pListCtrl)
+{
+    ui::Label* pLabel = dynamic_cast<ui::Label*>(FindControl(_T("cell_selection_label")));
+    if (pLabel == nullptr) {
+        return;
+    }
+    if (pListCtrl == nullptr) {
+        pLabel->SetText(_T(""));
+        return;
+    }
+    DString text;
+    const ui::ListCtrlCellId curCell = pListCtrl->GetCurrentCell();
+    if (curCell.IsValid()) {
+        text = ui::StringUtil::Printf(_T("CurrentCell: row=%zu, columnIndex=%zu; "),
+            curCell.nRowIndex, pListCtrl->GetColumnIndex(curCell.nColumnId));
+    }
+    else {
+        text = _T("CurrentCell: none; ");
+    }
+    std::vector<ui::ListCtrlCellId> cellList;
+    const size_t nSelectedCount = pListCtrl->GetSelectedCells(cellList);
+    text += ui::StringUtil::Printf(_T("SelectedCells=%zu"), nSelectedCount);
+    pLabel->SetText(text);
+}
+
+void MainForm::UpdateRowSelectionLabel(ui::ListCtrl* pListCtrl)
+{
+    ui::Label* pLabel = dynamic_cast<ui::Label*>(FindControl(_T("row_selection_label")));
+    if (pLabel == nullptr) {
+        return;
+    }
+    if (pListCtrl == nullptr) {
+        pLabel->SetText(_T(""));
+        return;
+    }
+    std::vector<size_t> rowList;
+    pListCtrl->GetSelectedDataItems(rowList);
+    DString strRows;
+    for (size_t i = 0; (i < rowList.size()) && (i < 10); ++i) {
+        strRows += ui::StringUtil::Printf(_T("%zu "), rowList[i]);
+    }
+    pLabel->SetText(ui::StringUtil::Printf(_T("SelectedRows=%zu: %s"), rowList.size(), strRows.c_str()));
+}
+
+void MainForm::ApplyProgressAppearanceToSubItem(ui::ListCtrlSubItem* pSubItem)
+{
+    if (pSubItem == nullptr) {
+        return;
+    }
+    //进度条文字位置
+    pSubItem->SetProgressTextPos(m_progressTextPos);
+    //进度条前景色（为空表示不覆盖默认值）
+    if (!m_progressColor.empty()) {
+        pSubItem->SetAttribute(_T("progress_color"), m_progressColor);
+    }
+    //进度条背景色（为空表示不覆盖默认值）
+    if (!m_progressBkColor.empty()) {
+        pSubItem->SetAttribute(_T("progress_bkcolor"), m_progressBkColor);
+    }
+}
+
+void MainForm::ApplyProgressAppearance(ui::ListCtrl* pListCtrl)
+{
+    if ((pListCtrl == nullptr) || (pListCtrl->GetListCtrlType() != ui::ListCtrlType::Report)) {
+        return;
+    }
+    //进度列：第2列（列索引1）
+    const size_t nProgressColumnIndex = 1;
+    ui::ListCtrlItem* pItem = pListCtrl->GetFirstDisplayItem();
+    while (pItem != nullptr) {
+        ui::ListCtrlSubItem* pSubItem = pItem->GetSubItem(nProgressColumnIndex);
+        ApplyProgressAppearanceToSubItem(pSubItem);
+        pItem = pListCtrl->GetNextDisplayItem(pItem);
+    }
+}
+
+void MainForm::InitCellSelectionTests(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+
+    //第3项：单元格选择事件（当前格变化 / 选中区域变化），刷新状态标签
+    pListCtrl->AttachCurrentCellChanged([this, pListCtrl](const ui::EventArgs& /*args*/) {
+        UpdateCellStateLabel(pListCtrl);
+        return true;
+        });
+    pListCtrl->AttachCellSelectionChanged([this, pListCtrl](const ui::EventArgs& /*args*/) {
+        UpdateCellStateLabel(pListCtrl);
+        //切换选择模式时会派发该事件（并清除另一模式的选择），在此同步刷新行选择状态显示
+        UpdateRowSelectionLabel(pListCtrl);
+        return true;
+        });
+    UpdateCellStateLabel(pListCtrl);
+
+    //单元格定位辅助（行用显示索引，列用列ID）
+    auto makeCell = [pListCtrl](size_t nRowIndex, size_t nColumnIndex) {
+        ui::ListCtrlCellId cell;
+        cell.nRowIndex = nRowIndex;
+        cell.nColumnId = pListCtrl->GetColumnId(nColumnIndex);
+        return cell;
+        };
+    //非单元格选择模式的提示后缀
+    auto modeTip = [pListCtrl]() -> DString {
+        return (pListCtrl->GetSelectionMode() == ui::ListCtrlSelectionMode::kCell) ?
+            DString() : DString(_T(" (need kCell mode)"));
+        };
+
+    //第2项：单元格选择 API
+    ui::Button* pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_set_current_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, makeCell, modeTip](const ui::EventArgs&) {
+            const ui::ListCtrlCellId cell = makeCell(2, 0);
+            const bool bRet = pListCtrl->SetCurrentCell(cell.nRowIndex, cell.nColumnId);
+            UpdateCellStateLabel(pListCtrl);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetCurrentCell(row=%zu, columnIndex=%zu) -> %s%s"),
+                    cell.nRowIndex, pListCtrl->GetColumnIndex(cell.nColumnId), bRet ? _T("true") : _T("false"), modeTip().c_str()),
+                _T("SetCurrentCell"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_query_current_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            const ui::ListCtrlCellId cell = pListCtrl->GetCurrentCell();
+            ui::SystemUtil::ShowMessageBox(this,
+                cell.IsValid() ? ui::StringUtil::Printf(_T("GetCurrentCell -> row=%zu, columnIndex=%zu"),
+                    cell.nRowIndex, pListCtrl->GetColumnIndex(cell.nColumnId)) :
+                                 DString(_T("GetCurrentCell -> none")),
+                _T("GetCurrentCell"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_clear_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            pListCtrl->ClearCellSelection();
+            UpdateCellStateLabel(pListCtrl);
+            ui::SystemUtil::ShowMessageBox(this, _T("ClearCellSelection done"), _T("ClearCellSelection"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_set_selection_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, makeCell, modeTip](const ui::EventArgs&) {
+            const bool bRet = pListCtrl->SetCellSelection(makeCell(2, 0), makeCell(4, 2), false);
+            UpdateCellStateLabel(pListCtrl);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetCellSelection(rows 2-4, columns 0-2, additive=false) -> %s%s"),
+                    bRet ? _T("true") : _T("false"), modeTip().c_str()),
+                _T("SetCellSelection"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_add_selection_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, makeCell, modeTip](const ui::EventArgs&) {
+            const bool bRet = pListCtrl->SetCellSelection(makeCell(6, 1), makeCell(7, 1), true);
+            UpdateCellStateLabel(pListCtrl);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetCellSelection(rows 6-7, column 1, additive=true) -> %s%s"),
+                    bRet ? _T("true") : _T("false"), modeTip().c_str()),
+                _T("SetCellSelection(add)"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_query_selection_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            ui::ListCtrlCellId anchorCell, focusCell;
+            pListCtrl->GetCellSelection(anchorCell, focusCell);
+            std::vector<ui::ListCtrlCellId> cellList;
+            const size_t nCount = pListCtrl->GetSelectedCells(cellList);
+            const size_t nAnchorIndex = pListCtrl->GetColumnIndex(anchorCell.nColumnId);
+            const size_t nFocusIndex = pListCtrl->GetColumnIndex(focusCell.nColumnId);
+            const DString strAnchorIndex = (nAnchorIndex == ui::Box::InvalidIndex) ?
+                DString(_T("none")) : ui::StringUtil::Printf(_T("%zu"), nAnchorIndex);
+            const DString strFocusIndex = (nFocusIndex == ui::Box::InvalidIndex) ?
+                DString(_T("none")) : ui::StringUtil::Printf(_T("%zu"), nFocusIndex);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("GetCellSelection -> anchor(row=%zu, columnIndex=%s), focus(row=%zu, columnIndex=%s)\nGetSelectedCells count=%zu"),
+                    anchorCell.nRowIndex, strAnchorIndex.c_str(), focusCell.nRowIndex, strFocusIndex.c_str(), nCount),
+                _T("GetCellSelection"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_set_selected_cells_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, makeCell, modeTip](const ui::EventArgs&) {
+            std::vector<ui::ListCtrlCellId> cellList;
+            for (size_t nRow = 8; nRow <= 9; ++nRow) {
+                for (size_t nColumn = 0; nColumn <= 1; ++nColumn) {
+                    cellList.push_back(makeCell(nRow, nColumn));
+                }
+            }
+            pListCtrl->SetSelectedCells(cellList, true);
+            UpdateCellStateLabel(pListCtrl);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetSelectedCells(%zu cells, rows 8-9 columns 0-1, clearOthers=true)%s"),
+                    cellList.size(), modeTip().c_str()),
+                _T("SetSelectedCells"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_query_state_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, makeCell, modeTip](const ui::EventArgs&) {
+            const ui::ListCtrlCellId cell = makeCell(2, 0);
+            const bool bSelected = pListCtrl->IsCellSelected(cell.nRowIndex, cell.nColumnId);
+            const bool bCurrent = pListCtrl->IsCellCurrent(cell.nRowIndex, cell.nColumnId);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("Cell(row=%zu, columnIndex=%zu): IsCellSelected=%s, IsCellCurrent=%s%s"),
+                    cell.nRowIndex, pListCtrl->GetColumnIndex(cell.nColumnId), bSelected ? _T("true") : _T("false"), bCurrent ? _T("true") : _T("false"), modeTip().c_str()),
+                _T("Query cell state"));
+            return true;
+            });
+    }
+
+    //第5项：CheckBox 勾选 API
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("check_first5_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            std::vector<size_t> itemList = { 0, 1, 2, 3, 4 };
+            pListCtrl->SetCheckedDataItems(itemList, true);
+            //同时演示单元格级勾选：第1行第1列的单元格
+            const bool bSubRet = pListCtrl->SetSubItemCheck(0, 0, true);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetCheckedDataItems(rows 0-4, true) done\nSetSubItemCheck(row=0, columnIndex=0, true) -> %s"),
+                    bSubRet ? _T("true") : _T("false")),
+                _T("Check rows"));
+            return true;
+            });
+    }
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("check_query_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            std::vector<size_t> itemList;
+            pListCtrl->GetCheckedDataItems(itemList);
+            DString strIndices;
+            for (size_t i = 0; (i < itemList.size()) && (i < 10); ++i) {
+                strIndices += ui::StringUtil::Printf(_T("%zu "), itemList[i]);
+            }
+            const bool bItem0 = pListCtrl->IsDataItemCheck(0);
+            const bool bSub0 = pListCtrl->IsSubItemChecked(0, 0);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("GetCheckedDataItems count=%zu, rows: %s\nIsDataItemCheck(0)=%s, IsSubItemChecked(0,0)=%s"),
+                    itemList.size(), strIndices.c_str(), bItem0 ? _T("true") : _T("false"), bSub0 ? _T("true") : _T("false")),
+                _T("Read checked set"));
+            return true;
+            });
+    }
+
+    //第6项：auto_check_select 开关（勾选CheckBox即选中该行）
+    ui::CheckBox* pAutoCheck = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_auto_check_select")));
+    if (pAutoCheck != nullptr) {
+        pAutoCheck->Selected(pListCtrl->IsAutoCheckSelect(), false);
+        pAutoCheck->AttachSelect([pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetAutoCheckSelect(true);
+            return true;
+            });
+        pAutoCheck->AttachUnSelect([pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetAutoCheckSelect(false);
+            return true;
+            });
+    }
+}
+
+void MainForm::InitCheckCopyTests(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+    auto setLabel = [this](const DString& text) {
+        ui::Label* pLabel = dynamic_cast<ui::Label*>(FindControl(_T("copy_export_label")));
+        if (pLabel != nullptr) {
+            pLabel->SetText(text);
+        }
+        };
+
+    //第7项：复制选中内容为CSV格式（CopySelectionToClipboard(true)）
+    ui::Button* pButton = dynamic_cast<ui::Button*>(FindControl(_T("copy_csv_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, setLabel](const ui::EventArgs&) {
+            const bool bRet = pListCtrl->CopySelectionToClipboard(true);
+            DString msg = bRet ? DString(_T("CopySelectionToClipboard(csv=true) -> OK, paste into Excel to verify"))
+                               : DString(_T("CopySelectionToClipboard(csv=true) -> FAILED (no selection, or enable_copy is false)"));
+            setLabel(msg);
+            ui::SystemUtil::ShowMessageBox(this, msg, _T("Copy as CSV"));
+            return true;
+            });
+    }
+    //第8项：整表导出CSV文件（ExportToCsvFile(path, false)）
+    pButton = dynamic_cast<ui::Button*>(FindControl(_T("export_all_csv_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl, setLabel](const ui::EventArgs&) {
+            ui::FilePath csvPath = ui::GlobalManager::GetResourceRootPath(false);
+            csvPath /= ui::FilePath(_T("list_ctrl_export_all.csv"));
+            const DString strFilePath = csvPath.ToString();
+            const bool bRet = pListCtrl->ExportToCsvFile(strFilePath, false);
+            DString msg;
+            if (bRet) {
+                msg = ui::StringUtil::Printf(_T("ExportToCsvFile(all rows) -> OK\nFile: %s"), strFilePath.c_str());
+            }
+            else {
+                msg = _T("ExportToCsvFile(all rows) -> FAILED (no data, or enable_csv_export is false)");
+            }
+            setLabel(msg);
+            ui::SystemUtil::ShowMessageBox(this, msg, _T("Export All CSV"));
+            return true;
+            });
+    }
+    //第9项：复制 / CSV 导出的开关（关闭后对应快捷键与接口不再生效）
+    ui::CheckBox* pEnableCopy = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_enable_copy")));
+    if (pEnableCopy != nullptr) {
+        pEnableCopy->Selected(pListCtrl->IsEnableCopy(), false);
+        pEnableCopy->AttachSelect([pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetEnableCopy(true);
+            return true;
+            });
+        pEnableCopy->AttachUnSelect([pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetEnableCopy(false);
+            return true;
+            });
+    }
+    ui::CheckBox* pEnableCsv = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_enable_csv_export")));
+    if (pEnableCsv != nullptr) {
+        pEnableCsv->Selected(pListCtrl->IsEnableCsvExport(), false);
+        pEnableCsv->AttachSelect([pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetEnableCsvExport(true);
+            return true;
+            });
+        pEnableCsv->AttachUnSelect([pListCtrl](const ui::EventArgs&) {
+            pListCtrl->SetEnableCsvExport(false);
+            return true;
+            });
+    }
+}
+
+void MainForm::InitProgressEditorTests(ui::ListCtrl* pListCtrl)
+{
+    if (pListCtrl == nullptr) {
+        return;
+    }
+
+    //第4项：进度条外观（文字位置 + 前景色），应用到"进度列"
+    auto applyPos = [this, pListCtrl](const DString& strPos) {
+        m_progressTextPos = strPos;
+        ApplyProgressAppearance(pListCtrl);
+        };
+    auto applyColor = [this, pListCtrl](const DString& strColor) {
+        m_progressColor = strColor;
+        ApplyProgressAppearance(pListCtrl);
+        };
+
+    ui::Option* pOption = nullptr;
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_pos_center")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyPos](const ui::EventArgs&) { applyPos(_T("center")); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_pos_left")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyPos](const ui::EventArgs&) { applyPos(_T("left")); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_pos_right")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyPos](const ui::EventArgs&) { applyPos(_T("right")); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_pos_outside")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyPos](const ui::EventArgs&) { applyPos(_T("outside")); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_color_default")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyColor](const ui::EventArgs&) { applyColor(_T("bg_progress")); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_color_green")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyColor](const ui::EventArgs&) { applyColor(_T("#FF00B42A")); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("progress_color_red")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyColor](const ui::EventArgs&) { applyColor(_T("#FFE81123")); return true; });
+    }
+
+    //行填充时，把进度条外观应用到"进度列"的单元格（应对滚动复用）
+    pListCtrl->AttachReportViewItemFilled([this](const ui::EventArgs& args) {
+        ui::ListCtrlItem* pItem = (ui::ListCtrlItem*)args.pEventData;
+        if (pItem != nullptr) {
+            ui::ListCtrlSubItem* pSubItem = pItem->GetSubItem(1);
+            if (pSubItem != nullptr) {
+                ApplyProgressAppearanceToSubItem(pSubItem);
+            }
+        }
+        return true;
+        });
+
+    //第4项：直接修改第1行、进度列的进度值（SetSubItemProgressById）
+    ui::Button* pButton = dynamic_cast<ui::Button*>(FindControl(_T("cell_progress_btn")));
+    if (pButton != nullptr) {
+        pButton->AttachClick([this, pListCtrl](const ui::EventArgs&) {
+            const size_t nRowIndex = 0;
+            const size_t nColumnId = pListCtrl->GetColumnId(1);
+            const int32_t nOldProgress = pListCtrl->GetSubItemProgressById(nRowIndex, nColumnId);
+            int32_t nNewProgress = nOldProgress + 25;
+            if (nNewProgress > 100) {
+                nNewProgress = 0;
+            }
+            const bool bRet = pListCtrl->SetSubItemProgressById(nRowIndex, nColumnId, nNewProgress);
+            ui::SystemUtil::ShowMessageBox(this,
+                ui::StringUtil::Printf(_T("SetSubItemProgressById(row=%zu, columnIndex=%zu, %d -> %d) -> %s"),
+                    nRowIndex, pListCtrl->GetColumnIndex(nColumnId), nOldProgress, nNewProgress, bRet ? _T("true") : _T("false")),
+                _T("Set cell progress"));
+            return true;
+            });
+    }
+
+    //第11项：逐列编辑器类型切换（SetColumnEditorTypeById）
+    auto applyEditorType = [this, pListCtrl](ui::ListCtrlEditorType editorType, bool bCombo) {
+        ui::Combo* pColumnCombo = dynamic_cast<ui::Combo*>(FindControl(_T("column_combo")));
+        if (pColumnCombo == nullptr) {
+            return;
+        }
+        size_t nColumnIndex = pColumnCombo->GetCurSel();
+        if (nColumnIndex >= pListCtrl->GetColumnCount()) {
+            nColumnIndex = 1;
+        }
+        const size_t nColumnId = pListCtrl->GetColumnId(nColumnIndex);
+        pListCtrl->SetColumnEditorTypeById(nColumnId, editorType);
+        if (bCombo) {
+            std::vector<DString> candidates = { _T("Alpha"), _T("Beta"), _T("Gamma"), _T("Delta") };
+            pListCtrl->SetColumnCandidatesById(nColumnId, candidates);
+        }
+        ui::SystemUtil::ShowMessageBox(this,
+            ui::StringUtil::Printf(_T("SetColumnEditorTypeById(columnIndex=%zu)%s done"),
+                nColumnIndex, bCombo ? _T(", SetColumnCandidatesById(4 items)") : _T("")),
+            _T("Set column editor type"));
+        };
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("editor_type_text")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyEditorType](const ui::EventArgs&) { applyEditorType(ui::ListCtrlEditorType::kEditText, false); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("editor_type_number")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyEditorType](const ui::EventArgs&) { applyEditorType(ui::ListCtrlEditorType::kEditNumber, false); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("editor_type_date")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyEditorType](const ui::EventArgs&) { applyEditorType(ui::ListCtrlEditorType::kEditDate, false); return true; });
+    }
+    pOption = dynamic_cast<ui::Option*>(FindControl(_T("editor_type_combo")));
+    if (pOption != nullptr) {
+        pOption->AttachSelect([applyEditorType](const ui::EventArgs&) { applyEditorType(ui::ListCtrlEditorType::kEditCombo, true); return true; });
+    }
 }
 
 void MainForm::RunListCtrlTest()
@@ -1176,14 +2781,17 @@ void MainForm::TestListCtrlEvents(ui::ListCtrl* pListCtrl)
         };
 
     //挂载事件，转接给外层
-    pListCtrl->AttachSelect([this, OnListCtrlEvent](const ui::EventArgs& args) {
+    pListCtrl->AttachSelect([this, OnListCtrlEvent, pListCtrl](const ui::EventArgs& args) {
         OnListCtrlEvent(args);
+        UpdateRowSelectionLabel(pListCtrl);
         return true;
         });
-    pListCtrl->AttachSelChanged([this, OnListCtrlEvent](const ui::EventArgs& args) {
+    pListCtrl->AttachSelChanged([this, OnListCtrlEvent, pListCtrl](const ui::EventArgs& args) {
         OnListCtrlEvent(args);
+        UpdateRowSelectionLabel(pListCtrl);
         return true;
         });
+    UpdateRowSelectionLabel(pListCtrl);
     pListCtrl->AttachDoubleClick([this, OnListCtrlEvent](const ui::EventArgs& args) {
         OnListCtrlEvent(args);
         return true;
@@ -1246,11 +2854,7 @@ void MainForm::TestListCtrlEvents(ui::ListCtrl* pListCtrl)
         };
     pListCtrl->AttachReportViewItemFilled([this, OnListCtrlItemFilledEvent](const ui::EventArgs& args) {
         OnListCtrlItemFilledEvent(args);
-        return true;
-        });
-    pListCtrl->AttachReportViewSubItemFilled([this, OnListCtrlItemFilledEvent](const ui::EventArgs& args) {
-        OnListCtrlItemFilledEvent(args);
-        OnReportViewSubItemFilled(args);
+        OnReportViewItemFilled(args);
         return true;
         });
     pListCtrl->AttachListViewItemFilled([this, OnListCtrlItemFilledEvent](const ui::EventArgs& args) {
@@ -1433,21 +3037,6 @@ DString MainForm::GetItemFilledEventDisplayInfo(const ui::EventArgs& args)
             ASSERT(pItem->GetDataItemIndex() == (size_t)args.lParam);
         }
     }
-    else if (args.eventType == ui::kEventReportViewSubItemFilled) {
-        ui::ListCtrlSubItem* pSubItem = (ui::ListCtrlSubItem*)args.pEventData;
-        ASSERT(pSubItem != nullptr);
-        if (pSubItem != nullptr) {
-            ASSERT(pSubItem->GetDataItemIndex() == (size_t)args.lParam);
-            ui::ListCtrlItem* pItem = pSubItem->GetListCtrlItem();
-            ASSERT(pItem != nullptr);
-            if (pItem != nullptr) {
-                ASSERT(pItem->GetListBoxIndex() == (size_t)args.wParam);
-                ASSERT(pItem->GetDataItemIndex() == (size_t)args.lParam);
-            }
-            sInfo += ui::StringUtil::Printf(_T("DataColumnIndex='%zu' "), pSubItem->GetDataColumnIndex());
-            sInfo += ui::StringUtil::Printf(_T("LabelText='%s' "), pSubItem->GetText().c_str());
-        }
-    }
     else if (args.eventType == ui::kEventListViewItemFilled) {
         ui::ListCtrlListViewItem* pItem = (ui::ListCtrlListViewItem*)args.pEventData;
         ASSERT(pItem != nullptr);
@@ -1476,15 +3065,52 @@ void MainForm::OutputDebugLog(const DString& logMsg)
 #endif
 }
 
-void MainForm::OnReportViewSubItemFilled(const ui::EventArgs& args)
+void MainForm::OnReportViewItemFilled(const ui::EventArgs& args)
 {
-    //默认不开启该测试
-    return;
-
-    if (args.eventType != ui::kEventReportViewSubItemFilled) {
+    //由界面上的勾选框开关控制是否生效（默认关闭）
+    if (!m_bReportViewItemFilled) {
         return;
     }
-    ui::ListCtrlSubItem* pSubItem = (ui::ListCtrlSubItem*)args.pEventData;
+
+    ASSERT(args.eventType == ui::kEventReportViewItemFilled);
+    ui::ListCtrlItem* pItem = (ui::ListCtrlItem*)args.pEventData;
+    ASSERT(pItem != nullptr);
+    if (pItem == nullptr) {
+        return;
+    }
+    ASSERT(pItem->GetListBoxIndex() == (size_t)args.wParam);
+    ASSERT(pItem->GetDataItemIndex() == (size_t)args.lParam);
+
+    if (args.pExtraData != nullptr) {
+        //只刷新了一个单元格
+        ui::ListCtrlSubItem* pSubItem = (ui::ListCtrlSubItem*)args.pExtraData;
+        OnReportViewSubItemFilled(pSubItem);
+    }
+    else {
+        //刷新了所有单元格
+        const size_t nSubItemCount = pItem->GetSubItemCount();
+        for (size_t nSubItem = 0; nSubItem < nSubItemCount; ++nSubItem) {
+            ui::ListCtrlSubItem* pSubItem = pItem->GetSubItem(nSubItem);
+            if (pSubItem != nullptr) {
+                OnReportViewSubItemFilled(pSubItem);
+            }
+        }
+    }
+}
+
+/** 自定义按钮类，便于识别
+*/
+class MyHoverButton : public ui::Button
+{
+public:
+    explicit MyHoverButton(ui::Window* pWindow):
+        ui::Button(pWindow)
+    {
+    }
+};
+
+void MainForm::OnReportViewSubItemFilled(ui::ListCtrlSubItem* pSubItem)
+{
     ASSERT(pSubItem != nullptr);
     if (pSubItem == nullptr) {
         return;
@@ -1492,7 +3118,7 @@ void MainForm::OnReportViewSubItemFilled(const ui::EventArgs& args)
 
     if (pSubItem->GetItemCount() == 0) {
         //功能演示：动态添加一个新按钮
-        ui::Button* pHoverButton = new ui::Button(pSubItem->GetWindow());
+        MyHoverButton* pHoverButton = new MyHoverButton(pSubItem->GetWindow());
         pHoverButton->SetClass(_T("btn_recycle"));
         pHoverButton->SetAttribute(_T("width"), _T("auto"));
         pHoverButton->SetAttribute(_T("height"), _T("auto"));
@@ -1535,9 +3161,18 @@ void MainForm::OnReportViewSubItemMouseEnter(const ui::EventArgs& args)
     }
     if (pSubItem->GetItemCount() > 0) {
         //鼠标划入时：如果存在子控件，则显示该子控件
-        ui::Control* pDemoControl = pSubItem->GetItemAt(0);
-        if ((pDemoControl != nullptr) && !pDemoControl->IsVisible()) {
-            pDemoControl->SetVisible(true);
+        MyHoverButton* pHoverButton = dynamic_cast<MyHoverButton*>(pSubItem->GetItemAt(0));
+        if (pHoverButton != nullptr) {
+            if (m_bReportViewItemFilled) {
+                //功能开启
+                if (!pHoverButton->IsVisible()) {
+                    pHoverButton->SetVisible(true);
+                }
+            }
+            else {
+                //功能关闭，移除自定义的按钮
+                pSubItem->RemoveItem(pHoverButton);
+            }
         }
     }
 }
@@ -1557,9 +3192,11 @@ void MainForm::OnReportViewSubItemMouseLeave(const ui::EventArgs& args)
     }
     if (pSubItem->GetItemCount() > 0) {
         //鼠标划出时：如果存在子控件，则隐藏该子控件
-        ui::Control* pDemoControl = pSubItem->GetItemAt(0);
-        if ((pDemoControl != nullptr) && pDemoControl->IsVisible()) {
-            pDemoControl->SetVisible(false);
+        MyHoverButton* pHoverButton = dynamic_cast<MyHoverButton*>(pSubItem->GetItemAt(0));
+        if (pHoverButton != nullptr) {
+            if (pHoverButton->IsVisible()) {
+                pHoverButton->SetVisible(false);
+            }
         }
     }
 }

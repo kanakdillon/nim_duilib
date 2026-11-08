@@ -2,6 +2,12 @@
 #include "AboutForm.h"
 #include "TestForm.h"
 #include "AnimationForm.h"
+#include "NavigationForm.h"
+#include "ChartForm.h"
+#include "MarqueeForm.h"
+#include "TimelineForm.h"
+#include "StatusBarForm.h"
+#include "ToolBarForm.h"
 
 #include <fstream>
 
@@ -296,6 +302,60 @@ void ControlForm::OnInitWindow()
             });
     }
 
+    //NavigationView 侧边栏导航演示
+    ui::Button* pNavigationBtn = dynamic_cast<ui::Button*>(FindControl(_T("navigation_btn")));
+    if (pNavigationBtn != nullptr) {
+        pNavigationBtn->AttachClick([this](const ui::EventArgs&) {
+            ShowNavigationWindow();
+            return true;
+            });
+    }
+
+    //Chart 轻量图表演示
+    ui::Button* pChartBtn = dynamic_cast<ui::Button*>(FindControl(_T("chart_btn")));
+    if (pChartBtn != nullptr) {
+        pChartBtn->AttachClick([this](const ui::EventArgs&) {
+            ShowChartWindow();
+            return true;
+            });
+    }
+
+    //Marquee 文本跑马灯演示
+    ui::Button* pMarqueeBtn = dynamic_cast<ui::Button*>(FindControl(_T("marquee_btn")));
+    if (pMarqueeBtn != nullptr) {
+        pMarqueeBtn->AttachClick([this](const ui::EventArgs&) {
+            ShowMarqueeWindow();
+            return true;
+            });
+    }
+
+    //Timeline 垂直时间轴演示
+    ui::Button* pTimelineBtn = dynamic_cast<ui::Button*>(FindControl(_T("timeline_btn")));
+    if (pTimelineBtn != nullptr) {
+        pTimelineBtn->AttachClick([this](const ui::EventArgs&) {
+            ShowTimelineWindow();
+            return true;
+            });
+    }
+
+    //StatusBar 状态栏演示
+    ui::Button* pStatusBarBtn = dynamic_cast<ui::Button*>(FindControl(_T("statusbar_btn")));
+    if (pStatusBarBtn != nullptr) {
+        pStatusBarBtn->AttachClick([this](const ui::EventArgs&) {
+            ShowStatusBarWindow();
+            return true;
+            });
+    }
+
+    //ToolBar 工具条演示
+    ui::Button* pToolBarBtn = dynamic_cast<ui::Button*>(FindControl(_T("toolbar_btn")));
+    if (pToolBarBtn != nullptr) {
+        pToolBarBtn->AttachClick([this](const ui::EventArgs&) {
+            ShowToolBarWindow();
+            return true;
+            });
+    }
+
     //托盘图标功能
     ui::CheckBox* pTrayIconCheckBox = dynamic_cast<ui::CheckBox*>(FindControl(_T("checkbox_tray_icon")));
     if (pTrayIconCheckBox != nullptr) {
@@ -467,6 +527,78 @@ void ControlForm::ShowAnimationWindow()
     createParam.m_dwStyle = ui::kWS_POPUP;
     createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
     createParam.m_windowTitle = _T("AnimationWindow");
+    createParam.m_bCenterWindow = true;
+    testForm->CreateWnd(this, createParam);
+    testForm->ShowModalFake();
+}
+
+void ControlForm::ShowNavigationWindow()
+{
+    NavigationForm* testForm = new NavigationForm();
+    ui::WindowCreateParam createParam;
+    createParam.m_dwStyle = ui::kWS_POPUP;
+    createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
+    createParam.m_windowTitle = _T("NavigationWindow");
+    createParam.m_bCenterWindow = true;
+    testForm->CreateWnd(this, createParam);
+    testForm->ShowModalFake();
+}
+
+void ControlForm::ShowChartWindow()
+{
+    ChartForm* testForm = new ChartForm();
+    ui::WindowCreateParam createParam;
+    createParam.m_dwStyle = ui::kWS_POPUP;
+    createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
+    createParam.m_windowTitle = _T("ChartWindow");
+    createParam.m_bCenterWindow = true;
+    testForm->CreateWnd(this, createParam);
+    testForm->ShowModalFake();
+}
+
+void ControlForm::ShowMarqueeWindow()
+{
+    MarqueeForm* testForm = new MarqueeForm();
+    ui::WindowCreateParam createParam;
+    createParam.m_dwStyle = ui::kWS_POPUP;
+    createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
+    createParam.m_windowTitle = _T("MarqueeWindow");
+    createParam.m_bCenterWindow = true;
+    testForm->CreateWnd(this, createParam);
+    testForm->ShowModalFake();
+}
+
+void ControlForm::ShowTimelineWindow()
+{
+    TimelineForm* testForm = new TimelineForm();
+    ui::WindowCreateParam createParam;
+    createParam.m_dwStyle = ui::kWS_POPUP;
+    createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
+    createParam.m_windowTitle = _T("TimelineWindow");
+    createParam.m_bCenterWindow = true;
+    testForm->CreateWnd(this, createParam);
+    testForm->ShowModalFake();
+}
+
+void ControlForm::ShowStatusBarWindow()
+{
+    StatusBarForm* testForm = new StatusBarForm();
+    ui::WindowCreateParam createParam;
+    createParam.m_dwStyle = ui::kWS_POPUP;
+    createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
+    createParam.m_windowTitle = _T("StatusBarWindow");
+    createParam.m_bCenterWindow = true;
+    testForm->CreateWnd(this, createParam);
+    testForm->ShowModalFake();
+}
+
+void ControlForm::ShowToolBarWindow()
+{
+    ToolBarForm* testForm = new ToolBarForm();
+    ui::WindowCreateParam createParam;
+    createParam.m_dwStyle = ui::kWS_POPUP;
+    createParam.m_dwExStyle = ui::kWS_EX_LAYERED;
+    createParam.m_windowTitle = _T("ToolBarWindow");
     createParam.m_bCenterWindow = true;
     testForm->CreateWnd(this, createParam);
     testForm->ShowModalFake();

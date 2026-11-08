@@ -1,4 +1,6 @@
-﻿## XML文件中各控件的节点名称
+简体中文 | [English](XmlNode.en.md)
+
+## XML文件中各控件的节点名称
 | 类名称 | XML节点名称 |关联头文件| 备注 |
 | :--- | :--- |:--- | :--- |
 | Control | "Control" | [duilib/Core/Control.h](../duilib/Core/Control.h) | |
@@ -8,6 +10,9 @@
 | HBox | "HBox"| [duilib/Box/HBox.h](../duilib/Box/HBox.h) | |
 | VFlowBox | "VFlowBox"| [duilib/Box/VBox.h](../duilib/Box/VBox.h) | |
 | HFlowBox | "HFlowBox"| [duilib/Box/HBox.h](../duilib/Box/HBox.h) | |
+| Panel | "Panel"| [duilib/Box/Panel.h](../duilib/Box/Panel.h) | 带标题栏、可折叠的面板容器（浮动布局） |
+| PanelHBox | "PanelHBox"| [duilib/Box/Panel.h](../duilib/Box/Panel.h) | 带标题栏、可折叠的面板容器（水平布局） |
+| PanelVBox | "PanelVBox"| [duilib/Box/Panel.h](../duilib/Box/Panel.h) | 带标题栏、可折叠的面板容器（垂直布局） |
 | BoxDragable | "BoxDragable" | [duilib/Core/ControlDragable.h](../duilib/Core/ControlDragable.h) | |
 | HBoxDragable | "HBoxDragable" | [duilib/Core/ControlDragable.h](../duilib/Core/ControlDragable.h) | |
 | VBoxDragable | "VBoxDragable" | [duilib/Core/ControlDragable.h](../duilib/Core/ControlDragable.h) | |
@@ -61,10 +66,19 @@
 | HyperLink | "HyperLink"| [duilib/Control/HyperLink.h](../duilib/Control/HyperLink.h) | |
 | IPAddress | "IPAddress"| [duilib/Control/IPAddress.h](../duilib/Control/IPAddress.h) | |
 | Line | "Line"| [duilib/Control/Line.h](../duilib/Control/Line.h) | |
+| NavigationView | "NavigationView"| [duilib/Control/NavigationView.h](../duilib/Control/NavigationView.h) | 侧边栏导航控件（左侧导航窗格+右侧内容区），继承HBox |
+| NavigationViewItem | "NavigationViewItem"| [duilib/Control/NavigationView.h](../duilib/Control/NavigationView.h) | NavigationView的导航项，支持item/header/separator三种形态 |
 | Progress | "Progress"| [duilib/Control/Progress.h](../duilib/Control/Progress.h) | |
 | Slider | "Slider"| [duilib/Control/Slider.h](../duilib/Control/Slider.h) | |
 | CircleProgress | "CircleProgress"| [duilib/Control/CircleProgress.h](../duilib/Control/CircleProgress.h) | |
 | RichEdit | "RichEdit"| [duilib/Control/RichEdit.h](../duilib/Control/RichEdit.h) | |
+| SpinBox | "SpinBox"| [duilib/Control/SpinBox.h](../duilib/Control/SpinBox.h) | 数字输入框，继承RichEdit，支持步长/范围/步进按钮 |
+| SearchBox | "SearchBox"| [duilib/Control/SearchBox.h](../duilib/Control/SearchBox.h) | 搜索框组合控件，左侧图标+编辑框+清除按钮，继承HBox |
+| TagInput | "TagInput"| [duilib/Control/TagInput.h](../duilib/Control/TagInput.h) | 标签输入框组合控件，回车/分隔符成标签、可删除标签，标签过多自动换行，继承Box |
+| AutoComplete | "AutoComplete"| [duilib/Control/AutoComplete.h](../duilib/Control/AutoComplete.h) | 自动完成输入框组合控件，边输入边在编辑框下方弹出候选浮层（复用Flyout），支持前缀/包含匹配，继承Box |
+| Switch | "Switch"| [duilib/Control/Switch.h](../duilib/Control/Switch.h) | 滑块开关控件，继承CheckBox，自带滑动动画与颜色过渡 |
+| Badge | "Badge"| [duilib/Control/Badge.h](../duilib/Control/Badge.h) | 角标控件，继承Label，未读数/小红点，数量超限显示"99+"，count<=0 自动隐藏 |
+| Mask | "Mask"| [duilib/Control/Mask.h](../duilib/Control/Mask.h) | 遮罩/蒙版层控件，用于模态遮罩/新手引导蒙层/加载遮罩，支持镂空高亮指定控件与镂空区点击穿透，继承Box |
 | RichText | "RichText"| [duilib/Control/RichText.h](../duilib/Control/RichText.h) | |
 | Split | "Split"| [duilib/Control/Split.h](../duilib/Control/Split.h) | |
 | SplitBox | "SplitBox"| [duilib/Control/Split.h](../duilib/Control/Split.h) | |

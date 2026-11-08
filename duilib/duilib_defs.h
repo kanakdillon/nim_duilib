@@ -69,6 +69,14 @@ namespace ui
     #define  DUI_CTR_GROUP_HBOX                      (_T("GroupHBox"))
     #define  DUI_CTR_GROUP_VBOX                      (_T("GroupVBox"))
 
+    #define  DUI_CTR_PANEL                           (_T("Panel"))
+    #define  DUI_CTR_PANEL_HBOX                      (_T("PanelHBox"))
+    #define  DUI_CTR_PANEL_VBOX                      (_T("PanelVBox"))
+
+    #define  DUI_CTR_STATUS_BAR                      (_T("StatusBar"))
+
+    #define  DUI_CTR_TOOL_BAR                        (_T("ToolBar"))
+
     #define  DUI_CTR_SCROLLBOX                       (_T("ScrollBox"))
     #define  DUI_CTR_HSCROLLBOX                      (_T("HScrollBox"))
     #define  DUI_CTR_VSCROLLBOX                      (_T("VScrollBox"))
@@ -103,11 +111,19 @@ namespace ui
 
     #define  DUI_CTR_RICHEDIT                        (_T("RichEdit"))
     #define  DUI_CTR_RICHEDIT2                       (_T("RichEdit2"))
+    #define  DUI_CTR_SPIN_BOX                        (_T("SpinBox"))
+    #define  DUI_CTR_SEARCH_BOX                      (_T("SearchBox"))
+    #define  DUI_CTR_SWITCH                          (_T("Switch"))
+    #define  DUI_CTR_BADGE                           (_T("Badge"))
+    #define  DUI_CTR_TAG_INPUT                       (_T("TagInput"))
+    #define  DUI_CTR_AUTO_COMPLETE                   (_T("AutoComplete"))
+    #define  DUI_CTR_MASK                            (_T("Mask"))
     #define  DUI_CTR_COMBO                           (_T("Combo"))
     #define  DUI_CTR_COMBO_BUTTON                    (_T("ComboButton"))
     #define  DUI_CTR_FILTER_COMBO                    (_T("FilterCombo"))
     #define  DUI_CTR_CHECK_COMBO                     (_T("CheckCombo"))
     #define  DUI_CTR_SLIDER                          (_T("Slider"))
+    #define  DUI_CTR_RANGE_SLIDER                    (_T("RangeSlider"))
     #define  DUI_CTR_PROGRESS                        (_T("Progress"))
     #define  DUI_CTR_CIRCLEPROGRESS                  (_T("CircleProgress"))
     #define  DUI_CTR_SCROLLBAR                       (_T("ScrollBar"))
@@ -120,6 +136,14 @@ namespace ui
     #define  DUI_CTR_MENU_BAR_ITEM                   (_T("MenuBarItem"))
 
     #define  DUI_CTR_DATETIME                        (_T("DateTime"))
+    #define  DUI_CTR_CALENDAR                        (_T("Calendar"))
+    #define  DUI_CTR_CALENDAR_FLYOUT                 (_T("CalendarFlyout"))
+    #define  DUI_CTR_NAVIGATIONVIEW                  (_T("NavigationView"))
+    #define  DUI_CTR_NAVIGATION_VIEW_ITEM            (_T("NavigationViewItem"))
+    #define  DUI_CTR_CHART                           (_T("Chart"))
+    #define  DUI_CTR_MARQUEE                         (_T("Marquee"))
+    #define  DUI_CTR_TIMELINE                        (_T("Timeline"))
+    #define  DUI_CTR_STEPPER                         (_T("Stepper"))
     #define  DUI_CTR_CEF                             (_T("CefControl"))
     #define  DUI_CTR_WEBVIEW2                        (_T("WebView2Control"))
 
@@ -179,6 +203,8 @@ namespace ui
         kStateImageSelectedFore     = 3,    //选择时的前景图片（CheckBox在用）
         kStateImagePartSelectedBk   = 4,    //部分选择时的背景图片（CheckBox在用）
         kStateImagePartSelectedFore = 5,    //部分选择时的前景图片（CheckBox在用）
+        kStateImagePanelArrowExpanded   = 6,    //Panel展开状态的箭头图片
+        kStateImagePanelArrowCollapsed  = 7,    //Panel折叠状态的箭头图片
     };
 
     //控件状态
@@ -403,6 +429,27 @@ namespace ui
         kEventExpand,               //TreeNode类：当树节点展开时触发
         kEventCollapse,             //TreeNode类：当树节点收起时触发
 
+        //Panel面板折叠/展开前（可取消：回调返回false阻止本次折叠/展开）
+        kEventPanelCollapsing,      //Panel类：面板即将折叠时触发，返回false可取消
+        kEventPanelExpanding,       //Panel类：面板即将展开时触发，返回false可取消
+
+        //NavigationView侧边栏导航
+        kEventNavigationItemClick,          //NavigationView类：点击可选择的导航项时触发(重复点击已选中项也会触发), WPARAM是可选项序号
+        kEventNavigationSelectionChanged,   //NavigationView类：选中项发生变化时触发, WPARAM是新序号, LPARAM是旧序号(无选中时为Box::InvalidIndex)
+        kEventNavigationPaneToggling,       //NavigationView类：窗格即将收起/展开时触发, WPARAM是目标状态(1=收起,0=展开)，回调返回false可取消本次切换
+        kEventNavigationPaneToggled,        //NavigationView类：窗格收起/展开完成时触发, WPARAM是当前状态(1=收起,0=展开)
+
+        //Timeline时间轴
+        kEventTimelineItemClick,            //Timeline类：点击时间轴节点时触发, WPARAM是节点序号(从0开始)
+
+        //TagInput标签输入框
+        kEventTagAdded,                     //TagInput类：新增标签后触发, WPARAM是新标签序号(从0开始)
+        kEventTagRemoved,                   //TagInput类：标签被删除前触发, WPARAM是被删除标签序号(回调中仍可读取该标签文本)
+        kEventTagClick,                     //TagInput类：点击标签正文区域时触发, WPARAM是标签序号(从0开始)
+
+        //AutoComplete自动完成输入框
+        kEventAutoCompleteSelect,          //AutoComplete类：选中联想候选项后触发, WPARAM是候选项在当前候选列表中的序号(从0开始)
+
         kEventZoom,                 //RichEdit类：当缩放比例发生变化时，wParam表示缩放百分比，比如200表示200%
         kEventTextChanged,          //RichEdit类：当文本内容发生变化时触发
         kEventSelChanged,           //ListCtrl类：选择项发生变化，RichEdit类：当文本选择内容发生变化时触发
@@ -413,6 +460,7 @@ namespace ui
 
         kEventScrollPosChanged,     //ScrollBox类：当滚动条位置发生变化时触发
         kEventValueChanged,         //DateTime、Slider类、PropertyGridProperty：当值发生变化时触发, Slider类：WPARAM是新值，LPARAM是旧值
+        kEventProgressCompleted,    //Progress类：当进度值到达完成端点（正向到max/倒数到min）时触发
         kEventPosChanged,           //Control类：当控件的位置发生变化时触发
         kEventSizeChanged,          //Control类：当控件的大小发生变化时触发
         kEventVisibleChanged,       //Control类：当控件的Visible属性发生变化时触发, WPARAM是新状态(1表示可见，0表示不可见)
@@ -432,12 +480,20 @@ namespace ui
         kEventSubItemMouseEnter,        //ListCtrl类：Report视图，鼠标进入ListCtrlSubItem控件事件
         kEventSubItemMouseLeave,        //ListCtrl类：Report视图，鼠标离开ListCtrlSubItem控件事件
         kEventReportViewItemFilled,     //ListCtrl类：视图数据项UI元素填充事件(虚表), 某行数据
-        kEventReportViewSubItemFilled,  //ListCtrl类：视图数据项UI元素填充事件(虚表), 某行某列数据
         kEventListViewItemFilled,       //ListCtrl类：视图数据项UI元素填充事件(虚表)
         kEventIconViewItemFilled,       //ListCtrl类：视图数据项UI元素填充事件(虚表)
         kEventViewTypeChanged,          //ListCtrl类：当视图的类型发生变化时触发，wParam是当前视图类型，lParam是原来的视图类型，枚举值参见listCtrlType取值, pEventData为视图的指针
         kEventViewPosChanged,           //ListCtrl类：当视图控件的位置发生变化时触发，视图类型参见listCtrlType取值
         kEventViewSizeChanged,          //ListCtrl类：当视图控件的大小发生变化时触发，视图类型参见listCtrlType取值
+
+        kEventColumnWidthChanged,       //ListCtrl类：列的宽度发生变化, wParam是列ID(size_t), lParam是关联的另一个列ID(size_t, 可能为Box::InvalidIndex)
+        kEventColumnOrderChanged,       //ListCtrl类：列的显示顺序发生变化(拖动列表头调整列的顺序)
+        kEventColumnVisibleChanged,     //ListCtrl类：列的显示/隐藏状态发生变化, wParam是列ID(size_t), lParam是新状态(1表示显示，0表示隐藏)
+        kEventColumnSorted,             //ListCtrl类：列的排序状态发生变化, wParam是列ID(size_t), lParam是新状态(1表示升序，0表示降序)
+
+        kEventCurrentCellChanged,       //ListCtrl类：当前单元格发生变化(单元格选择模式), wParam是行的显示索引(size_t), lParam是列ID(size_t)
+        kEventCellSelectionChanged,     //ListCtrl类：单元格的选择区域发生变化, wParam是选中区域的个数(size_t)，lParam为0，
+                                        //            pEventData 指向 std::vector<ui::ListCtrlCellRange>（按行/列归并后的选中区域列表）
 
         kEventPathChanged,          //AddressBar类：当路径方式变化时触发
         kEventPathClick,            //AddressBar类：当用户点击路径按钮时触发
@@ -462,6 +518,9 @@ namespace ui
 
         kEventImageLoad,                //图片加载完成事件，wParam 为数据指针：ui::ImageDecodeResult*
         kEventImageDecode,              //图片解码完成事件，wParam 为数据指针：ui::ImageDecodeResult*
+
+        kEventViewModeChanged,          //Calendar类：当日历视图模式（月/年/十年）发生变化时触发，wParam是新视图模式(0=月,1=年,2=十年)，lParam是旧视图模式
+        kEventDisplayDateChanged,       //Calendar类：当显示周期（月视图的月份、年/十年视图的年份）发生变化时触发，标题栏等需据此刷新；wParam/lParam 暂未使用
 
         kEventLast,                     //控件的最后一个消息
 

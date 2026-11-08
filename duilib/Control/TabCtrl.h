@@ -4,9 +4,18 @@
 #include "duilib/Box/ListBox.h"
 #include "duilib/Core/ControlDragable.h"
 #include "duilib/Control/IconControl.h"
+#include "duilib/Control/Badge.h"
 
 namespace ui
 {
+/** TabCtrl 的布局方向
+*/
+enum class TabCtrlOrientation
+{
+    kHorizontal = 0,  //水平方向（默认值）
+    kVertical        //垂直方向
+};
+
 /** 多标签控件（类似浏览器的多标签）
 */
 class TabBox;
@@ -49,6 +58,29 @@ public:
     /** 处理分割线的显示或者隐藏
     */
     void AdjustItemLineStatus();
+
+    /** 设置标签栏的布局方向（水平 / 垂直）
+    * @param [in] orientation 布局方向，默认水平
+    */
+    void SetTabCtrlOrientation(TabCtrlOrientation orientation);
+
+    /** 获取标签栏的布局方向
+    */
+    TabCtrlOrientation GetTabCtrlOrientation() const;
+
+    /** 设置是否启用溢出滚动（标签超出可视区域时显示滚动条）
+    * @param [in] bEnable true表示启用，默认启用
+    */
+    void SetEnableOverflowScroll(bool bEnable);
+
+    /** 判断是否启用溢出滚动
+    */
+    bool IsEnableOverflowScroll() const;
+
+    /** 获取固定标签的数量（固定标签恒位于标签栏前端，构成连续的固定块）
+    * @return 返回固定标签的数量
+    */
+    size_t GetFixedItemCount() const;
 
 public:
     /** 设置选择标签项的外部轮廓边线的宽度
@@ -136,6 +168,10 @@ protected:
     virtual void PaintStateColors(IRender* pRender) override;
 
 private:
+    /** 固定标签归位：把固定标签稳定地移到标签栏前端（保持各自原有相对顺序）
+    */
+    void NormalizeFixedItems();
+
     /** 默认选择的子项
     */
     size_t m_nSelectedId;
@@ -151,6 +187,14 @@ private:
     /** 是否支持拖动改变列的顺序(功能开关)
     */
     bool m_bEnableDragOrder;
+
+    /** 标签栏的布局方向（水平/垂直）
+    */
+    TabCtrlOrientation m_orientation;
+
+    /** 是否启用溢出滚动（标签超出可视区域时显示滚动条）
+    */
+    bool m_bEnableOverflowScroll;
 
     /** 选择标签项的外部轮廓边线的宽度，宽度值未进行DPI缩放
     */
@@ -248,6 +292,40 @@ public:
     */
     Control* GetLineControl() const { return m_pLine; }
 
+    /** 获取角标控件（未读数/小红点，未设置角标Class时返回nullptr）
+    */
+    Badge* GetBadgeControl() const { return m_pBadge; }
+
+public:
+    /** 设置角标数量：大于0时显示角标，小于等于0时自动隐藏
+    */
+    void SetBadgeCount(int64_t nCount);
+
+    /** 获取角标数量
+    */
+    int64_t GetBadgeCount() const;
+
+    /** 设置角标数量上限：超过上限时显示"上限+"（如"99+"），默认99
+    */
+    void SetBadgeMaxCount(int64_t nMaxCount);
+
+    /** 获取角标数量上限
+    */
+    int64_t GetBadgeMaxCount() const;
+
+    /** 设置角标是否为红点模式：true为纯小圆点，不显示数字
+    */
+    void SetBadgeDot(bool bDot);
+
+    /** 角标是否为红点模式
+    */
+    bool IsBadgeDot() const;
+
+    /** 角标控件的Class
+    */
+    void SetBadgeClass(const DString& badgeClass);
+    DString GetBadgeClass() const;
+
 public:
     /** 图标控件的Class
     */
@@ -326,6 +404,15 @@ public:
     */
     virtual bool IsEnableDragOrder() const override;
 
+    /** 设置标签是否为固定标签（固定标签不可拖动、不可作为拖放目标，且不显示关闭按钮）
+    * @param [in] bFixed true表示为固定标签
+    */
+    void SetFixed(bool bFixed);
+
+    /** 判断标签是否为固定标签
+    */
+    bool IsFixed() const;
+
 protected:
     /** 初始化接口
     */
@@ -382,6 +469,10 @@ protected:
     */
     TabCtrl* GetTabCtrl() const;
 
+    /** 更新关闭按钮的可见性（综合自动隐藏与固定标签两个因素）
+    */
+    void UpdateCloseButtonVisible();
+
     /** 检查并设置图标的可见性
     */
     void CheckIconVisible();
@@ -421,6 +512,10 @@ private:
     */
     bool m_bAutoHideCloseBtn;
 
+    /** 是否为固定标签（固定标签不可拖动、不显示关闭按钮）
+    */
+    bool m_bFixed;
+
     /** 图标控件
     */
     IconControl* m_pIcon;
@@ -437,6 +532,10 @@ private:
     */
     Control* m_pLine;
 
+    /** 角标控件（未读数/小红点）
+    */
+    Badge* m_pBadge;
+
     /** 图标控件的Class
     */
     UiString m_iconClass;
@@ -452,6 +551,22 @@ private:
     /** 分割线的Class
     */
     UiString m_lineClass;
+
+    /** 角标控件的Class
+    */
+    UiString m_badgeClass;
+
+    /** 角标数量（小于等于0时自动隐藏）
+    */
+    int64_t m_nBadgeCount;
+
+    /** 角标数量上限，超过时显示"上限+"（如"99+"）
+    */
+    int64_t m_nBadgeMaxCount;
+
+    /** 角标是否为红点模式（纯小圆点，不显示数字）
+    */
+    bool m_bBadgeDot;
 
     /** 文本内容
     */

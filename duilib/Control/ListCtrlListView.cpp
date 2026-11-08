@@ -180,6 +180,24 @@ void ListCtrlListView::Refresh(bool bSync)
     BaseClass::Refresh(bSync);
 }
 
+void ListCtrlListView::OnModelDataChanged(size_t nStartElementIndex, size_t nEndElementIndex)
+{
+    if ((m_pListCtrl != nullptr) && !m_pListCtrl->IsEnableRefresh()) {
+        //刷新功能已经禁止
+        return;
+    }
+    BaseClass::OnModelDataChanged(nStartElementIndex, nEndElementIndex);
+}
+
+void ListCtrlListView::OnModelCountChanged()
+{
+    if ((m_pListCtrl != nullptr) && !m_pListCtrl->IsEnableRefresh()) {
+        //刷新功能已经禁止
+        return;
+    }
+    BaseClass::OnModelCountChanged();
+}
+
 Control* ListCtrlListView::CreateDataItem()
 {
     ASSERT(m_pListCtrl != nullptr);
@@ -208,7 +226,7 @@ bool ListCtrlListView::FillDataItem(Control* pControl,
     if ((pControl == nullptr) || (m_pListCtrl == nullptr)) {
         return false;
     }
-    ListCtrlSubItemData2Ptr pSubItemData;
+    const ListCtrlSubItemData2* pSubItemData = nullptr;
     int32_t nImageId = -1;
     size_t nColumnId = m_pListCtrl->GetColumnId(0); //取第一列的ID
     for (const ListCtrlSubItemData2Pair& pair : subItemList) {
@@ -299,7 +317,7 @@ bool ListCtrlListView::FillDataItem(Control* pControl,
     return true;
 }
 
-int32_t ListCtrlListView::GetMaxDataItemWidth(const std::vector<ListCtrlSubItemData2Ptr>& /*subItemList*/)
+int32_t ListCtrlListView::GetMaxDataItemWidth(const std::vector<const ListCtrlSubItemData2*>& /*subItemList*/)
 {
     //不需要实现
     return -1;

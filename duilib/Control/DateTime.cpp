@@ -1,13 +1,14 @@
 #include "DateTime.h"
 #include "duilib/Core/Window.h"
+#include "duilib/Core/GlobalManager.h"
+#include "duilib/Utils/AttributeUtil.h"
+#include "duilib/Utils/StringUtil.h"
+#include "duilib/Control/CalendarFlyout.h"
+#include "duilib/Control/Calendar.h"
 #include <sstream>
 #include <iomanip>
 
-#if defined (DUILIB_BUILD_FOR_WIN) && !defined (DUILIB_BUILD_FOR_SDL)
-    #include "DateTimeWnd_Windows.h"
-#elif defined (DUILIB_BUILD_FOR_SDL)
-    #include "DateTimeWnd_SDL.h"
-#endif
+#include "DateTimeWnd.h"
 
 namespace ui
 {
@@ -15,6 +16,8 @@ DateTime::DateTime(Window* pWindow):
     LabelTemplate<HBox>(pWindow),
     m_dateTime({0,}),
     m_pDateWindow(nullptr),
+    m_pCalendarFlyout(nullptr),
+    m_bSuppressCalendarReopen(false),
     m_editFormat(EditFormat::kDateCalendar),
     m_dateSeparator(_T('-'))
 {
@@ -23,14 +26,19 @@ DateTime::DateTime(Window* pWindow):
     SetAttribute(_T("border_color"), _T("border_richedit_normal"));
     SetAttribute(_T("text_align"), _T("vcenter"));
     SetAttribute(_T("text_padding"), _T("2,0,0,0"));
-#ifdef DUILIB_BUILD_FOR_SDL
     SetAttribute(_T("padding"), _T("1,1,1,1"));
     SetAttribute(_T("spin_class"), _T("rich_edit_spin_box,rich_edit_spin_btn_up,rich_edit_spin_btn_down"));
-#endif
 }
 
 DateTime::~DateTime()
 {
+    //释放可能残留的 DateTimeWnd 对象（例如编辑尚未结束时控件就被销毁），
+    //避免对象泄漏与悬空引用。m_pDateWindow 为空时 delete nullptr 是安全的。
+    if (m_pDateWindow != nullptr) {
+        DateTimeWnd* pWnd = m_pDateWindow.get();
+        m_pDateWindow = nullptr;
+        delete pWnd;
+    }
 }
 
 DString DateTime::GetType() const { return DUI_CTR_DATETIME; }
@@ -67,6 +75,13 @@ void DateTime::SetAttribute(const DString& strName, const DString& strValue2)
     else if (strName == _T("spin_class")) {
         SetSpinClass(strValue);
     }
+    else if (strName == _T("current_time")) {
+        //初始化为当前本地时间，方便使用：无需在代码中手动调用 InitLocalTime()
+        //取值为 "true" 或 "1" 时生效（与 StringUtil::IsValueTrue 一致）
+        if (StringUtil::IsValueTrue(strValue)) {
+            InitLocalTime();
+        }
+    }
     else {
         BaseClass::SetAttribute(strName, strValue);
     }
@@ -88,6 +103,19 @@ void DateTime::ClearTime()
 {
     struct tm dateTime = { 0, };
     SetDateTime(dateTime);
+}
+
+void DateTime::ResetCalendarFlyoutState()
+{
+    m_bSuppressCalendarReopen = false;
+}
+
+void DateTime::CloseCalendarFlyout()
+{
+    if (m_pCalendarFlyout != nullptr) {
+        //关闭浮层（内部关闭回调会把 m_pCalendarFlyout 置空）
+        m_pCalendarFlyout->Dismiss();
+    }
 }
 
 const struct tm& DateTime::GetDateTime() const
@@ -346,17 +374,22 @@ void DateTime::HandleEvent(const EventArgs& msg)
         return;
     }
     else if (msg.eventType == kEventWindowSize) {
-        if (m_pDateWindow != nullptr) {
+        if (m_pDateWindow != nullptr || m_pCalendarFlyout != nullptr) {
             return;
         }
     }
     else if (msg.eventType == kEventScrollPosChanged) {
-        if (m_pDateWindow != nullptr) {
+        if (m_pDateWindow != nullptr || m_pCalendarFlyout != nullptr) {
             return;
         }
     }
     else if (msg.eventType == kEventSetFocus) {
-        if (m_pDateWindow != nullptr) {
+        if (m_pDateWindow != nullptr || m_pCalendarFlyout != nullptr) {
+            return;
+        }
+        if (m_bSuppressCalendarReopen) {
+            //日历浮层刚关闭，焦点恢复触发的 SetFocus 不再重开
+            //（可能连续收到多次 SetFocus，标志在 KillFocus/MouseButtonDown 时才清除）
             return;
         }
         if (GetRect().IsZero() && (GetWindow() != nullptr)) {
@@ -364,17 +397,46 @@ void DateTime::HandleEvent(const EventArgs& msg)
             GetWindow()->UpdateWindow();
         }
         if (IsFocused() && IsEnabled()) {
-            m_pDateWindow = new DateTimeWnd(this);
-            if (m_pDateWindow->Init(this)) {
-                m_pDateWindow->ShowWindow();
+            if (GetEditFormat() == EditFormat::kDateCalendar) {
+                //使用新的 CalendarFlyout 弹层
+                m_pCalendarFlyout = new CalendarFlyout(GetWindow());
+                m_pCalendarFlyout->AttachDateSelected([this](WPARAM wParam, LPARAM lParam) {
+                    if (wParam == 0) {
+                        time_t t = (time_t)lParam;
+                        struct tm date = Calendar::TimeTToDate(t);
+                        SetDateTime(date);
+                    }
+                });
+                m_pCalendarFlyout->AttachDateCleared([this]() {
+                    ClearTime();
+                });
+                m_pCalendarFlyout->AttachClosed([this](ui::Flyout::CloseReason) {
+                    m_pCalendarFlyout = nullptr;
+                    //浮层关闭后焦点回落到本控件会触发 SetFocus，需抑制重开
+                    m_bSuppressCalendarReopen = true;
+                    return true;
+                });
+                struct tm initDate = IsValidDateTime() ? m_dateTime : Calendar::GetToday();
+                if (!m_pCalendarFlyout->ShowAt(this, initDate, ui::Flyout::Placement::Bottom)) {
+                    //创建失败时 ShowAt 内部已销毁对象，需置空避免悬空指针
+                    m_pCalendarFlyout = nullptr;
+                }
             }
             else {
-                delete m_pDateWindow;
-                m_pDateWindow = nullptr;
+                //其他格式使用统一的 DateTimeWnd 实现
+                m_pDateWindow = new DateTimeWnd(this);
+                if (m_pDateWindow->Init(this)) {
+                    m_pDateWindow->ShowWindow();
+                }
+                else {
+                    delete m_pDateWindow.get();
+                    m_pDateWindow = nullptr;
+                }
             }
         }
     }
     else if (msg.eventType == kEventKillFocus) {
+        m_bSuppressCalendarReopen = false;
         Invalidate();
     }
     else if ((msg.eventType == kEventMouseButtonDown) ||
@@ -383,16 +445,45 @@ void DateTime::HandleEvent(const EventArgs& msg)
         if (GetWindow() != nullptr) {
             GetWindow()->ReleaseCapture();
         }
-        if (IsFocused() && IsEnabled() && (m_pDateWindow == nullptr)) {
-            m_pDateWindow = new DateTimeWnd(this);
-        }
-        if (m_pDateWindow != nullptr) {
-            if (m_pDateWindow->Init(this)) {
-                m_pDateWindow->ShowWindow();
+        //用户主动点击，清除抑制标志
+        m_bSuppressCalendarReopen = false;
+        if (IsFocused() && IsEnabled() && (m_pDateWindow == nullptr) && (m_pCalendarFlyout == nullptr)) {
+            if (GetEditFormat() == EditFormat::kDateCalendar) {
+                //使用新的 CalendarFlyout 弹层
+                m_pCalendarFlyout = new CalendarFlyout(GetWindow());
+                m_pCalendarFlyout->AttachDateSelected([this](WPARAM wParam, LPARAM lParam) {
+                    if (wParam == 0) {
+                        //单选模式
+                        time_t t = (time_t)lParam;
+                        struct tm date = Calendar::TimeTToDate(t);
+                        SetDateTime(date);
+                    }
+                });
+                m_pCalendarFlyout->AttachDateCleared([this]() {
+                    ClearTime();
+                });
+                m_pCalendarFlyout->AttachClosed([this](ui::Flyout::CloseReason) {
+                    m_pCalendarFlyout = nullptr;
+                    //浮层关闭后焦点恢复触发的 SetFocus 不再重开
+                    m_bSuppressCalendarReopen = true;
+                    return true;
+                });
+                struct tm initDate = IsValidDateTime() ? m_dateTime : Calendar::GetToday();
+                if (!m_pCalendarFlyout->ShowAt(this, initDate, ui::Flyout::Placement::Bottom)) {
+                    //创建失败时 ShowAt 内部已销毁对象，需置空避免悬空指针
+                    m_pCalendarFlyout = nullptr;
+                }
             }
             else {
-                delete m_pDateWindow;
-                m_pDateWindow = nullptr;
+                //其他格式使用统一的 DateTimeWnd 实现
+                m_pDateWindow = new DateTimeWnd(this);
+                if (m_pDateWindow->Init(this)) {
+                    m_pDateWindow->ShowWindow();
+                }
+                else {
+                    delete m_pDateWindow.get();
+                    m_pDateWindow = nullptr;
+                }
             }
         }
     }
@@ -456,7 +547,125 @@ void DateTime::SendEventMsg(const EventArgs& msg)
 
 void DateTime::EndEditDateTime()
 {
+    //编辑结束时，必须复位并释放 DateTimeWnd 对象：
+    //DateTimeWnd 仅在 m_pDateWindow 中通过弱引用被持有，若不复位，m_pDateWindow 将持续非空，
+    //导致后续点击命中 HandleEvent 中的“m_pDateWindow != nullptr 直接返回”分支，
     SendEvent(kEventKillFocus);
+    if (m_pDateWindow != nullptr) {
+        //再也无法重新进入编辑（编辑一次后点击再也无法编辑日期）。
+        DateTimeWnd* pWnd = m_pDateWindow.get();
+        m_pDateWindow = nullptr;
+        delete pWnd;
+    }
+}
+
+UiSize DateTime::EstimateText(UiSize szAvailable)
+{
+    //当未设置日期（显示文本为空）时，使用与日期格式等宽的示例字符串估算，
+    //避免 width/height 为 auto 时被估算为 0，导致控件塌陷；
+    //已设置日期时，直接使用真实日期文本进行估算。
+    DString text = GetText();
+    UiSize size;
+    if (text.empty()) {
+        DString sample = GetSampleDateTimeString();
+        if (!sample.empty()) {
+            size = BaseClass::EstimateTextWith(sample, szAvailable);
+        }
+        else {
+            size = BaseClass::EstimateText(szAvailable);
+        }
+    }
+    else {
+        size = BaseClass::EstimateText(szAvailable);
+    }
+
+    //支持 Spin（spin_class 不为空）时，预留 Spin 按钮容器所占的宽度，
+    //使 width 为 auto 的 DateTime 在显示态也能为编辑态的 Spin 留出空间，
+    //避免进入编辑态后 Spin 被挤压或显示不全。
+    if (GetEditFormat() != EditFormat::kDateCalendar) {
+        DString spinClass = GetSpinClass();
+        if (!spinClass.empty()) {
+            int32_t nSpinWidth = GetSpinBoxWidth(spinClass);
+            if (nSpinWidth > 0) {
+                size.cx += nSpinWidth;
+            }
+        }
+    }
+    return size;
+}
+
+int32_t DateTime::GetSpinBoxWidth(const DString& spinClass) const
+{
+    //spin_class 格式："spin容器class,上按钮class,下按钮class"，取首段（容器）的 width
+    std::list<DString> classNames = StringUtil::Split(spinClass, _T(","));
+    if (classNames.empty()) {
+        return 0;
+    }
+    DString spinBoxClass = classNames.front();
+    StringUtil::Trim(spinBoxClass);
+    if (spinBoxClass.empty()) {
+        return 0;
+    }
+
+    //解析 spin 容器类的 width 属性（与 Control::SetClass 的处理一致：先查全局类，再查窗口类）
+    DString classAttributes = GlobalManager::Instance().GetClassAttributes(spinBoxClass);
+    if (classAttributes.empty() && (GetWindow() != nullptr)) {
+        classAttributes = GetWindow()->GetClassAttributes(spinBoxClass);
+    }
+    if (classAttributes.empty()) {
+        return 0;
+    }
+
+    std::vector<std::pair<DString, DString>> attributeList;
+    if (!AttributeUtil::ParseAttributeList(classAttributes, attributeList)) {
+        return 0;
+    }
+
+    int32_t nWidth = 0;
+    for (const auto& attr : attributeList) {
+        if (attr.first == _T("width")) {
+            DString value = attr.second;
+            StringUtil::Trim(value);
+            //仅支持固定像素宽度；auto / 百分比 / stretch 无法在估算阶段静态确定，忽略
+            if (!value.empty() && (value != _T("auto")) &&
+                (value.find(_T("%")) == DString::npos) &&
+                (value.find(_T("stretch")) == DString::npos)) {
+                int32_t nRawWidth = StringUtil::StringToInt32(value);
+                if (nRawWidth > 0) {
+                    nWidth = Dpi().GetScaleInt(nRawWidth);
+                }
+            }
+            break;  //width 属性找到即结束（无论是否可用）
+        }
+    }
+    return nWidth;
+}
+
+DString DateTime::GetSampleDateTimeString() const
+{
+    //使用固定日期（2000-01-01 00:00:00）生成与真实日期等宽的示例字符串，
+    //仅用于尺寸估算，不会作为实际显示文本。
+    struct tm t = { 0, };
+    t.tm_year = 100;   //2000 年
+    t.tm_mon  = 0;     //1 月
+    t.tm_mday = 1;
+    t.tm_hour = 0;
+    t.tm_min  = 0;
+    t.tm_sec  = 0;
+    t.tm_wday = 6;     //2000-01-01 为星期六（仅 %a/%A/%w 等格式会用到）
+    t.tm_yday = 0;
+    t.tm_isdst = -1;   //由 mktime 自动判断夏令时
+    DString sFormat = GetStringFormat();
+    if (sFormat.empty()) {
+        return DString();
+    }
+#ifdef DUILIB_UNICODE
+    std::wstringstream ss;
+#else
+    std::stringstream ss;
+#endif
+    ss << std::put_time(&t, sFormat.c_str());
+    return ss.str();
 }
 
 }//namespace ui

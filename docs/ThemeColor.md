@@ -1,3 +1,5 @@
+简体中文 | [English](ThemeColor.en.md)
+
 # nim_duilib 主题颜色配置 XML 规范 (v2.0)
 
 ## 1. 文件结构概览

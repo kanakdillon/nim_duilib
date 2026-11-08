@@ -53,7 +53,13 @@ SET CPU_ARCH=%VSCMD_ARG_TGT_ARCH%
 if "%CPU_ARCH%"=="" (
     SET CPU_ARCH=x64
 )
+
 SET DUILIB_SKIA_LIB_SUBPATH=llvm.%CPU_ARCH%.release
+if "%DUILIB_COMPILER_ID%"=="msvc" (
+    if "%DUILIB_BUILD_TYPE%"=="Debug" (
+        SET "DUILIB_SKIA_LIB_SUBPATH=llvm.%CPU_ARCH%.debug"
+    )
+)
 echo "DUILIB_SKIA_LIB_SUBPATH:%DUILIB_SKIA_LIB_SUBPATH%"
 
 if not exist "%SKIA_SRC_ROOT_DIR%\out\%DUILIB_SKIA_LIB_SUBPATH%" (
@@ -94,7 +100,7 @@ for %%i in (%DUILIB_THIRD_PARTY_LIBS%) do (
 %DUILIB_MAKE% "%DUILIB_BUILD_DIR%\duilib" %DUILIB_BUILD_PARAM%
 
 @REM #编译examples下的各个程序
-SET DUILIB_PROGRAMS=basic,controls,ColorPicker,DpiAware,chat,layout,ListBox,ListCtrl,MoveControl,MultiLang,render,RichEdit,VirtualListBox,threads,TreeView,cef,CefBrowser,WebView2,WebView2Browser,ChildWindow,XmlPreview,ColorTheme
+SET DUILIB_PROGRAMS=basic,controls,ColorPicker,DpiAware,chat,layout,ListBox,ListCtrl,MoveControl,MultiLang,render,RichEdit,VirtualListBox,threads,TreeView,cef,CefBrowser,WebView2,WebView2Browser,ChildWindow,XmlPreview,ColorTheme,panel
 for %%i in (%DUILIB_PROGRAMS%) do (
     %DUILIB_CMAKE% -S "%DUILIB_SRC_ROOT_DIR%examples\%%i" -B "%DUILIB_BUILD_DIR%\%%i" -DCMAKE_BUILD_TYPE=%DUILIB_BUILD_TYPE% -DDUILIB_SKIA_LIB_SUBPATH=%DUILIB_SKIA_LIB_SUBPATH%
     %DUILIB_MAKE% "%DUILIB_BUILD_DIR%\%%i" %DUILIB_BUILD_PARAM%

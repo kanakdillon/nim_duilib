@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="utf-8"?>
+<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" ToolsVersion="12.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -235,6 +235,7 @@
     <ClCompile Include="CEFControl\internal\Windows\util_win.cc" />
     <ClCompile Include="Control\AddressBar.cpp" />
     <ClCompile Include="Control\BitmapControl.cpp" />
+    <ClCompile Include="Control\Chart.cpp" />
     <ClCompile Include="Control\CheckCombo.cpp" />
     <ClCompile Include="Control\ChildWindow.cpp" />
     <ClCompile Include="Control\ChildWindowImpl.cpp" />
@@ -249,8 +250,7 @@
     <ClCompile Include="Control\ColorSlider.cpp" />
     <ClCompile Include="Control\ComboButton.cpp" />
     <ClCompile Include="Control\DateTime.cpp" />
-    <ClCompile Include="Control\DateTimeWnd_SDL.cpp" />
-    <ClCompile Include="Control\DateTimeWnd_Windows.cpp" />
+    <ClCompile Include="Control\DateTimeWnd.cpp" />
     <ClCompile Include="Control\DirectoryTree.cpp" />
     <ClCompile Include="Control\DirectoryTreeImpl_Linux.cpp" />
     <ClCompile Include="Control\DirectoryTreeImpl_Windows.cpp" />
@@ -272,6 +272,7 @@
     <ClCompile Include="Control\ListCtrlReportView.cpp" />
     <ClCompile Include="Control\ListCtrlSubItem.cpp" />
     <ClCompile Include="Control\ListCtrlView.cpp" />
+    <ClCompile Include="Control\Marquee.cpp" />
     <ClCompile Include="Control\Menu.cpp" />
     <ClCompile Include="Control\MenuBar.cpp" />
     <ClCompile Include="Control\PropertyGrid.cpp" />
@@ -284,8 +285,21 @@
     <ClCompile Include="Control\RichEditHost_Windows.cpp" />
     <ClCompile Include="Control\RichEdit_Windows.cpp" />
     <ClCompile Include="Control\RichTextImpl.cpp" />
+    <ClCompile Include="Control\SearchBox.cpp" />
+    <ClCompile Include="Control\TagInput.cpp" />
+    <ClCompile Include="Control\AutoComplete.cpp" />
+    <ClCompile Include="Control\SpinBox.cpp" />
+    <ClCompile Include="Control\Switch.cpp" />
+    <ClCompile Include="Control\Badge.cpp" />
+    <ClCompile Include="Control\Mask.cpp" />
+    <ClCompile Include="Control\Calendar.cpp" />
+    <ClCompile Include="Control\CalendarFlyout.cpp" />
+    <ClCompile Include="Control\NavigationView.cpp" />
+    <ClCompile Include="Control\Flyout.cpp" />
     <ClCompile Include="Control\TabCtrl.cpp" />
     <ClCompile Include="Control\TextDrawer.cpp" />
+    <ClCompile Include="Control\Timeline.cpp" />
+    <ClCompile Include="Control\Stepper.cpp" />
     <ClCompile Include="Core\Box.cpp" />
     <ClCompile Include="Core\BoxShadow.cpp" />
     <ClCompile Include="Core\ClickThrough_Windows.cpp" />
@@ -524,6 +538,7 @@
     <ClCompile Include="Utils\FileUtil.cpp" />
     <ClCompile Include="Utils\InlineHook_Windows.cpp" />
     <ClCompile Include="Utils\LogUtil.cpp" />
+    <ClCompile Include="Utils\MessageBoxWnd.cpp" />
     <ClCompile Include="Utils\MonitorUtil_SDL.cpp" />
     <ClCompile Include="Utils\MonitorUtil_Windows.cpp" />
     <ClCompile Include="Utils\PerformanceUtil.cpp" />
@@ -535,9 +550,13 @@
     <ClCompile Include="Control\Combo.cpp" />
     <ClCompile Include="Control\Progress.cpp" />
     <ClCompile Include="Control\Slider.cpp" />
+    <ClCompile Include="Control\RangeSlider.cpp" />
+    <ClCompile Include="Control\StatusBar.cpp" />
+    <ClCompile Include="Control\ToolBar.cpp" />
     <ClCompile Include="Control\TreeView.cpp" />
     <ClCompile Include="Utils\SystemUtil_SDL.cpp" />
     <ClCompile Include="Utils\SystemUtil_Windows.cpp" />
+    <ClCompile Include="Utils\ToastWnd.cpp" />
     <ClCompile Include="Utils\TrayIcon.cpp" />
     <ClCompile Include="Utils\TrayIcon_SDL.cpp" />
     <ClCompile Include="Utils\TrayIcon_Windows.cpp" />
@@ -564,6 +583,7 @@
     <ClInclude Include="Box\ListBox.h" />
     <ClInclude Include="Box\ListBoxHelper.h" />
     <ClInclude Include="Box\ListBoxItem.h" />
+    <ClInclude Include="Box\Panel.h" />
     <ClInclude Include="Box\ScrollBox.h" />
     <ClInclude Include="Box\TabBox.h" />
     <ClInclude Include="Box\TileBox.h" />
@@ -594,6 +614,7 @@
     <ClInclude Include="CEFControl\internal\Windows\util_win.h" />
     <ClInclude Include="Control\AddressBar.h" />
     <ClInclude Include="Control\BitmapControl.h" />
+    <ClInclude Include="Control\Chart.h" />
     <ClInclude Include="Control\CheckCombo.h" />
     <ClInclude Include="Control\ChildWindow.h" />
     <ClInclude Include="Control\ChildWindowEvents.h" />
@@ -608,8 +629,7 @@
     <ClInclude Include="Control\ColorSlider.h" />
     <ClInclude Include="Control\ComboButton.h" />
     <ClInclude Include="Control\DateTime.h" />
-    <ClInclude Include="Control\DateTimeWnd_SDL.h" />
-    <ClInclude Include="Control\DateTimeWnd_Windows.h" />
+    <ClInclude Include="Control\DateTimeWnd.h" />
     <ClInclude Include="Control\DirectoryTree.h" />
     <ClInclude Include="Control\DirectoryTreeImpl.h" />
     <ClInclude Include="Control\FilterCombo.h" />
@@ -633,6 +653,7 @@
     <ClInclude Include="Control\ListCtrlReportView.h" />
     <ClInclude Include="Control\ListCtrlSubItem.h" />
     <ClInclude Include="Control\ListCtrlView.h" />
+    <ClInclude Include="Control\Marquee.h" />
     <ClInclude Include="Control\Menu.h" />
     <ClInclude Include="Control\MenuBar.h" />
     <ClInclude Include="Control\MenuListBox.h" />
@@ -652,9 +673,22 @@
     <ClInclude Include="Control\RichText.h" />
     <ClInclude Include="Control\CircleProgress.h" />
     <ClInclude Include="Control\RichTextImpl.h" />
+    <ClInclude Include="Control\SearchBox.h" />
+    <ClInclude Include="Control\TagInput.h" />
+    <ClInclude Include="Control\AutoComplete.h" />
+    <ClInclude Include="Control\SpinBox.h" />
     <ClInclude Include="Control\Split.h" />
+    <ClInclude Include="Control\Switch.h" />
+    <ClInclude Include="Control\Badge.h" />
+    <ClInclude Include="Control\Mask.h" />
+    <ClInclude Include="Control\Flyout.h" />
+    <ClInclude Include="Control\Calendar.h" />
+    <ClInclude Include="Control\CalendarFlyout.h" />
+    <ClInclude Include="Control\NavigationView.h" />
     <ClInclude Include="Control\TabCtrl.h" />
     <ClInclude Include="Control\TextDrawer.h" />
+    <ClInclude Include="Control\Timeline.h" />
+    <ClInclude Include="Control\Stepper.h" />
     <ClInclude Include="Core\Box.h" />
     <ClInclude Include="Core\BoxShadow.h" />
     <ClInclude Include="Core\Callback.h" />
@@ -853,6 +887,7 @@
     <ClInclude Include="Utils\InlineHook_Windows.h" />
     <ClInclude Include="Utils\LogUtil.h" />
     <ClInclude Include="Utils\Macros_Windows.h" />
+    <ClInclude Include="Utils\MessageBoxWnd.h" />
     <ClInclude Include="Utils\MonitorUtil.h" />
     <ClInclude Include="Utils\PerformanceUtil.h" />
     <ClInclude Include="Utils\ProcessSingleton.h" />
@@ -863,6 +898,7 @@
     <ClInclude Include="Utils\StringConvert.h" />
     <ClInclude Include="Utils\StringUtil.h" />
     <ClInclude Include="Utils\SystemUtil.h" />
+    <ClInclude Include="Utils\ToastWnd.h" />
     <ClInclude Include="Utils\TrayIcon.h" />
     <ClInclude Include="Utils\WinImplBase.h" />
     <ClInclude Include="Control\Button.h" />
@@ -872,6 +908,9 @@
     <ClInclude Include="Control\Option.h" />
     <ClInclude Include="Control\Progress.h" />
     <ClInclude Include="Control\Slider.h" />
+    <ClInclude Include="Control\RangeSlider.h" />
+    <ClInclude Include="Control\StatusBar.h" />
+    <ClInclude Include="Control\ToolBar.h" />
     <ClInclude Include="Control\TreeView.h" />
     <ClInclude Include="WebView2\ComCallback.h" />
     <ClInclude Include="WebView2\ComPtr.h" />

@@ -242,6 +242,15 @@ public:
     */
     bool IsCheckBoxImageClicked() const;
 
+    /** 判断鼠标点（窗口客户区坐标）是否落在CheckBox图标上
+    *   可用于在事件派发前判断是否需要放行CheckBox的勾选操作
+    *   （例如ListCtrl在单元格选择模式下会消费Item的鼠标消息，需先判断鼠标是否落在行级/表头级CheckBox图标上）
+    *   说明：仅当支持勾选模式(SupportCheckMode()为true)、且当前确实绘制了CheckBox图标时，才可能返回true
+    * @param [in] ptMouse 鼠标点（窗口客户区坐标）
+    * @return 返回true表示鼠标点落在CheckBox图标上，否则返回false
+    */
+    bool IsMouseOnCheckBoxIcon(const UiPoint& ptMouse) const;
+
     /** 设置是否支持勾选模式
     */
     void SetSupportCheckMode(bool bSupport) { m_bSupportCheckMode = bSupport; }
@@ -278,6 +287,15 @@ protected:
     /** 鼠标按键弹起事件，用于判断是否点击在CheckBox图片上(实现勾选功能)
     */
     virtual bool ButtonUp(const EventArgs& msg) override;
+
+    /** 将鼠标点（窗口客户区坐标）换算到用于判定CheckBox图标命中的控件坐标空间
+    *   默认实现：ptMouse + GetScrollOffsetInScrollBox()（框架通用约定）
+    *   子类可重写，以适配特殊坐标口径（例如 ListCtrl 的冻结列区域固定显示、不随横向滚动移动，
+    *   其行首CheckBox的点击判定需要按横向偏移为0换算，否则横向滚动后无法勾选）
+    * @param [in] ptMouse 鼠标点（窗口客户区坐标）
+    * @return 返回换算后的控件坐标空间中的点
+    */
+    virtual UiPoint GetCheckBoxMousePos(const UiPoint& ptMouse) const;
 
 protected:
     /** 获取被选择时指定状态下的实际被渲染文本颜色
@@ -578,8 +596,7 @@ bool CheckBoxTemplate<InheritType>::ButtonUp(const EventArgs& msg)
     if (bCheckedMode && (m_pCheckBoxImageRect != nullptr)) {
         if (this->IsEnabled()) {
             UiRect pos = this->GetPos();
-            UiPoint pt(msg.ptMouse);
-            pt.Offset(this->GetScrollOffsetInScrollBox());
+            const UiPoint pt = this->GetCheckBoxMousePos(msg.ptMouse);
             if (pos.ContainsPt(pt) && m_pCheckBoxImageRect->ContainsPt(pt)) {
                 //确认点击在CheckBox图标上面，改变勾选状态(开关属性)
                 SetChecked(!IsChecked(), true);
@@ -600,6 +617,24 @@ bool CheckBoxTemplate<InheritType>::ButtonUp(const EventArgs& msg)
         m_bCheckBoxImageClicked = false;
     }
     return bRet;
+}
+
+template<typename InheritType>
+UiPoint CheckBoxTemplate<InheritType>::GetCheckBoxMousePos(const UiPoint& ptMouse) const
+{
+    UiPoint pt(ptMouse);
+    pt.Offset(this->GetScrollOffsetInScrollBox());
+    return pt;
+}
+
+template<typename InheritType>
+bool CheckBoxTemplate<InheritType>::IsMouseOnCheckBoxIcon(const UiPoint& ptMouse) const
+{
+    if (!SupportCheckMode() || (m_pCheckBoxImageRect == nullptr) || m_pCheckBoxImageRect->IsEmpty()) {
+        return false;
+    }
+    const UiPoint pt = GetCheckBoxMousePos(ptMouse);
+    return this->GetPos().ContainsPt(pt) && m_pCheckBoxImageRect->ContainsPt(pt);
 }
 
 template<typename InheritType>

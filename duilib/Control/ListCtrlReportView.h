@@ -17,6 +17,8 @@ namespace ui
  */
 class ListCtrl;
 class ListCtrlData;
+class ListCtrlSubItem;
+class ListCtrlItem;
 struct ListCtrlItemData;
 class DUILIB_API ListCtrlReportView : public ListCtrlView, public IListCtrlView
 {
@@ -28,6 +30,18 @@ public:
 
     virtual DString GetType() const override { return _T("ListCtrlReportView"); }
     virtual void HandleEvent(const EventArgs& msg) override;
+
+    /** 鼠标事件(来源于子控件的消息转发)：单元格选择模式下拦截，用于实现单元格的选择与区域扩展
+    * @param [in] msg 鼠标事件的内容
+    * @return 返回true表示已按单元格选择处理，不再触发行选择
+    */
+    virtual bool OnListBoxItemMouseEvent(const EventArgs& msg) override;
+
+    /** 键盘事件(来源于子控件的消息转发)：下拉候选浮层打开时拦截，用于优先消费回车/ESC/上下方向键
+    * @param [in] msg 键盘事件的内容
+    * @return 返回true表示已消费该按键，子项不再处理
+    */
+    virtual bool OnListBoxItemKeyEvent(const EventArgs& msg) override;
 
     /** 设置ListCtrl控件接口
     */
@@ -131,19 +145,9 @@ public:
      *   wParam: 关联的UI容器子项索引号，有效范围：[0, GetItemCount())，如果值为Box::InvalidIndex，表示未关联任何子项
      *   lParam: 关联的UI容器子项索引号对应的数据项索引号，有效范围：[0, GetDataItemCount())，如果值为Box::InvalidIndex，表示无关联的数据项
      *   pEventData: 关联的UI容器子项的界面控件接口指针，类型为：ListCtrlItem*指针，数据按行填充
+     *   pExtraData: 关联的单元格指针，类型为：ListCtrlSubItem*指针，如果不为nullptr，表示只填充了此单元格；如果为nullptr，表示填充了本行的所有单元格
      */
     void AttachReportViewItemFilled(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventReportViewItemFilled, callback, callbackID); }
-
-    /** 监听Report视图数据项UI元素填充事件（虚表，填充某行某列数据）
-     * @param [in] callback 要绑定的回调函数
-     * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
-     * 参数说明:
-     *   wParam: 关联的UI容器子项索引号，有效范围：[0, GetItemCount())，如果值为Box::InvalidIndex，表示未关联任何子项
-     *   lParam: 关联的UI容器子项索引号对应的数据项索引号，有效范围：[0, GetDataItemCount())，如果值为Box::InvalidIndex，表示无关联的数据项
-     *   pEventData: 关联的UI容器子项的界面控件接口指针，类型为：ListCtrlSubItem*指针，代表某行某列数据的UI元素控件
-     *               通过该接口，可以获取数据项索引号、哪一列的数据
-     */
-    void AttachReportViewSubItemFilled(const EventCallback& callback, EventCallbackID callbackID = 0) { this->AttachEvent(kEventReportViewSubItemFilled, callback, callbackID); }
 
 public:
     /** 是否为标准模式（行高都为默认行高，无隐藏行，无置顶行）
@@ -189,7 +193,20 @@ public:
     */
     void AdjustSubItemWidth(const std::map<size_t, int32_t>& subItemWidths);
 
+    /** 刷新指定单元格的数据显示（单格刷新）
+    * @param [in] nElementIndex 数据元素的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] nColumnId 列的ID
+    * @return 返回true表示更新成功，返回false表示参数无效，或者该单元格当前不在可见范围内
+    */
+    bool RefreshSubItemData(size_t nElementIndex, size_t nColumnId);
+
 protected:
+    /** 主题发生变化时的处理
+    *  主题变化后，单元格的文本样式/颜色需要重新从主题类解析，所以清除所有行的元素索引绑定，
+    *  使下次布局时重新填充单元格数据（避免复用控件时沿用旧主题的样式）
+    */
+    virtual void OnThemeChanged(bool bRedraw) override;
+
     /** 绘制子控件
     */
     virtual void PaintChild(IRender* pRender, const UiRect& rcPaint) override;
@@ -199,6 +216,22 @@ protected:
     virtual Control* FindControl(FINDCONTROLPROC Proc, void* pProcData, uint32_t uFlags,
                                  const UiPoint& ptMouse = UiPoint(),
                                  const UiPoint& scrollPos = UiPoint()) override;
+
+    /** 获取当前滚动条偏移量（重写 ScrollBox::GetScrollOffset）
+    *  冻结列命中遍历期间（m_bFrozenHitTestPass 为 true 时）横向分量按0计：
+    *  冻结列固定显示在视口左侧、不随横向滚动移动，其坐标空间横向偏移为0，
+    *  使子控件的 GetScrollOffsetInScrollBox() 与冻结列的显示位置口径一致
+    * @return 返回滚动条偏移量
+    */
+    virtual UiSize GetScrollOffset() const override;
+
+    /** 获取某个子控件（含子孙控件）所属坐标空间的滚动偏移量（重写 ScrollBox::GetScrollOffsetForChild）
+    *  冻结列区域内的子控件（数据行的单元格、表头的单元格及其子孙控件）固定显示在视口左侧、
+    *  不随横向滚动移动，其横向偏移量按0计；其余子控件（如整行的 ListCtrlItem）保持默认口径
+    * @param [in] pChild 待换算坐标的子控件（可能是子孙控件）
+    * @return 返回该子控件所在坐标空间对应的滚动偏移量
+    */
+    virtual UiSize GetScrollOffsetForChild(const PlaceHolder* pChild) const override;
 
     /** 创建一个数据项
     * @return 返回创建后的数据项指针
@@ -221,7 +254,7 @@ protected:
     * @param [in] subItemList 数据子项（代表每一列的数据）
     * @return 返回该列宽度的最大值，返回的是DPI自适应后的值； 如果失败返回-1
     */
-    virtual int32_t GetMaxDataItemWidth(const std::vector<ListCtrlSubItemData2Ptr>& subItemList) override;
+    virtual int32_t GetMaxDataItemWidth(const std::vector<const ListCtrlSubItemData2*>& subItemList) override;
 
     /** 计算本页里面显示几个子项
     * @param [in] bIsHorizontal 当前布局是否为水平布局
@@ -271,6 +304,22 @@ protected:
     */
     virtual bool OnFrameSelection(int64_t left, int64_t right, int64_t top, int64_t bottom) override;
 
+    /** 当前是否允许绘制"行选中"背景色（行选中背景色为行选择模式专属视觉）
+        单元格选择模式下返回false：这样无论行选择状态由哪个入口（鼠标/键盘/API）改动，
+        界面都不会显示出"行被选中"的视觉表现，从而在单元格选择模式下看不出行可选状态
+    */
+    virtual bool CanPaintSelectedColors(bool bHasStateImages) const override;
+
+    /** 在视图空白处点击了鼠标左键
+    * @return 如果有选择变化返回true，否则返回false
+    */
+    virtual bool OnLButtonClickedBlank() override;
+
+    /** 在视图空白处点击了鼠标右键
+    * @return 如果有选择变化返回true，否则返回false
+    */
+    virtual bool OnRButtonClickedBlank() override;
+
     /** 某个数据项的Check勾选状态变化(列级)
     * @param [in] nElementIndex 数据项的索引号, 有效范围：[0, GetDataItemCount())
     * @param [in] nColumnId 列ID
@@ -278,16 +327,268 @@ protected:
     */
     void OnSubItemColumnChecked(size_t nElementIndex, size_t nColumnId, bool bChecked);
 
+    /** 判断某个子控件（含子孙控件）是否属于"冻结列"区域
+    *  判定方式：向上查找该控件所属的单元格（数据行的单元格为 ListCtrlSubItem，表头单元格为 ListCtrlHeaderItem），
+    *  再用单元格的列ID换取列索引号，与冻结列个数比较；整行的 ListCtrlItem 等无归属单元格的控件返回false
+    * @param [in] pChild 待判断的子控件（可能是子孙控件）
+    * @return 返回true表示该控件属于冻结列区域，否则返回false
+    */
+    bool IsChildInFrozenColumn(const PlaceHolder* pChild) const;
+
+protected:
+    /** 数据内容发生变化，在事件中需要重新加载展示数据，子类可重写此函数，来拦截自动刷新界面
+    */
+    virtual void OnModelDataChanged(size_t nStartElementIndex, size_t nEndElementIndex) override;
+
+    /** 数据个数发生变化，在事件中需要重新加载展示数据，子类可重写此函数，来拦截自动刷新界面
+    */
+    virtual void OnModelCountChanged() override;
+
 private:
+    /** 清除所有数据行的元素索引绑定
+    *  清空后，下次布局时这些行控件需要重新填充数据（按需填充：绑定关系未失效的行不重复填充）。
+    *  用于"数据元素与UI控件的绑定关系失效"的场景：结构性刷新（排序/增删行/行高/置顶行/隐藏行等）、
+    *  主题变化等，避免复用控件时显示陈旧的数据或样式
+    */
+    void InvalidateRowElementIndexes();
+
+    /** 给单元格添加CheckBox，并挂载勾选/取消勾选事件
+    * @param [in] pSubItem 单元格控件
+    * @param [in] nColumnId 列ID
+    * @param [in] nElementIndex 数据项的索引号
+    * @param [in] bChecked 勾选状态
+    */
+    void AddSubItemCheckBox(ListCtrlSubItem* pSubItem, size_t nColumnId, size_t nElementIndex, bool bChecked);
+
+    /** 移除单元格的CheckBox，并解绑勾选/取消勾选事件
+    */
+    void RemoveSubItemCheckBox(ListCtrlSubItem* pSubItem);
+
     /** 绘制网格线
     */
     void PaintGridLines(IRender* pRender);
+
+    /** 单元格选择模式下的鼠标框选：把框选矩形内的单元格置为选中
+    *  说明：框选矩形由 ListBoxHelper 传入（视图客户坐标，与行模式同一口径）；
+    *        Ctrl+拖动（m_bCellDragAdditive）为追加语义，只增不减
+    * @param [in] left 框选矩形的X坐标left值
+    * @param [in] right 框选矩形的X坐标right值
+    * @param [in] top 框选矩形的Y坐标top值
+    * @param [in] bottom 框选矩形的Y坐标bottom值
+    * @return 如果有选择变化返回true，否则返回false
+    */
+    bool OnFrameSelectionForCells(int64_t left, int64_t right, int64_t top, int64_t bottom);
+
+    /** 命中测试：将鼠标位置（窗口客户坐标）映射到单元格（行显示索引 + 列ID）
+    * @param [in] ptMouse 鼠标位置（窗口客户坐标）
+    * @param [out] nRowIndex 命中单元格所在行的显示索引；未命中时为 Box::InvalidIndex
+    * @param [out] nColumnId 命中单元格的列ID；未命中时为 Box::InvalidIndex
+    * @param [out] ppItem 命中单元格所在的数据项（ListCtrlItem）指针；未命中时为 nullptr
+    * @return 返回是否命中某个单元格
+    */
+    bool HitTestCell(const UiPoint& ptMouse, size_t& nRowIndex, size_t& nColumnId, ListCtrlItem** ppItem = nullptr) const;
+
+    /** 把鼠标位置换算为"子项控件坐标"（与 ListCtrlSubItem::GetRect() 同一坐标系）
+    *  横向按冻结列口径换算：鼠标落在冻结区内时，冻结列不随横向滚动移动，横向滚动量按 0 计
+    *  （与绘制趟、FindControl 的冻结列处理保持一致，避免横向滚动后命中的列与视觉错位）
+    * @param [in] ptMouse 鼠标位置（窗口客户坐标）
+    * @param [in] scrollOffsetInBox 滚动框内的滚动偏移量（与 ListCtrlItem::GetSubItem 取值一致）
+    * @return 返回换算后的坐标
+    */
+    UiPoint MouseToCellSpace(const UiPoint& ptMouse, const UiPoint& scrollOffsetInBox) const;
+
+    /** 判断鼠标点是否落在"置顶行"（不可选行）范围内
+    *  置顶行固定显示在顶部，会遮挡其下方滚动的普通行；鼠标落在其上时不应穿透选择下方的单元格
+    * @param [in] ptMouse 鼠标位置（窗口客户坐标）
+    * @return 返回是否落在置顶行范围内
+    */
+    bool IsPointOnAtTopItem(const UiPoint& ptMouse) const;
+
+    /** 命中"置顶行"（不可选行）所在的列表项
+    * @param [in] ptMouse 鼠标位置（窗口客户坐标）
+    * @return 返回鼠标点命中的置顶行列表项；未命中时为 nullptr
+    */
+    ListCtrlItem* HitTestTopItem(const UiPoint& ptMouse) const;
+
+    /** 判断鼠标点（窗口客户坐标）是否落在"列表项自身的CheckBox图标"上
+    *  列表项指数据行（ListCtrlItem）与表头（ListCtrlHeader），其CheckBox由控件自身绘制；
+    *  用于单元格选择模式下判断是否需要放行鼠标事件，让Item自行完成勾选/取消勾选
+    * @param [in] pSender 鼠标事件所属的控件（即 EventArgs::GetSender()）
+    * @param [in] ptMouse 鼠标位置（窗口客户坐标）
+    * @return 返回true表示鼠标点落在列表项自身的CheckBox图标上
+    */
+    bool IsMouseOnItemCheckBox(const Control* pSender, const UiPoint& ptMouse) const;
+
+    /** 计算"表头与置顶行"所占的矩形区域（这些行固定显示在顶部，会遮挡其下方滚动的普通行）
+    * @param [out] rcTopFixed 返回表头与置顶行所占的矩形区域
+    * @return 是否存在表头或置顶行
+    */
+    bool GetTopFixedItemsRect(UiRect& rcTopFixed) const;
+
+    /** 把某个单元格的数据填充到UI控件（FillDataItem与RefreshSubItemData共用，保证填充逻辑一致）
+    * @param [in] pSubItem 目标子项控件
+    * @param [in] pStorage 单元格的数据，可以为空
+    * @param [in] defaultSubItem 默认属性子项控件
+    * @param [in] pDefaultTextColors 缓存的默认状态文本颜色数组（长度为kControlStateCount），
+    *             由调用方按行预先计算一次，供该行所有单元格复用，避免每个单元格重复取值
+    * @param [in] nColumnId 列的ID
+    * @param [in] nElementIndex 数据元素的索引号
+    */
+    void FillSubItemData(ListCtrlSubItem* pSubItem,
+                         const ListCtrlSubItemData2* pStorage,
+                         const ListCtrlSubItem& defaultSubItem,
+                         const DString* pDefaultTextColors,
+                         size_t nColumnId,
+                         size_t nElementIndex);
+
+    /** 列布局表：描述各列的 X 区间（内容坐标，以视口左边为原点）
+    *  由"首个可见数据行的子项控件几何"推导；无可见数据行时回退到表头几何。
+    *  这是"某一列 X 区间"的唯一来源：冻结区宽度、以及后续的单元格选择 / 合并 /
+    *  多级表头等能力均由此推导，禁止在绘制、命中、网格线各处自行累加列宽。
+    *  说明：本表按"可见顺序"记录列，坐标为内容坐标（不扣滚动偏移）。
+    */
+    struct ListCtrlColumnLayout
+    {
+        /** 单个列的位置信息 */
+        struct Column
+        {
+            /** 列的ID */
+            size_t nColumnId = Box::InvalidIndex;
+
+            /** 列的序号（0起，按可见顺序） */
+            size_t nColumnIndex = 0;
+
+            /** 列左边界的X坐标（内容坐标，相对视口左边） */
+            int32_t nXBegin = 0;
+
+            /** 列右边界的X坐标（内容坐标，相对视口左边） */
+            int32_t nXEnd = 0;
+
+            /** 列的宽度 */
+            int32_t GetWidth() const { return nXEnd - nXBegin; }
+        };
+
+        /** 各列的信息（按列序排列） */
+        std::vector<Column> m_columns;
+
+        /** 获取列数 */
+        size_t GetColumnCount() const { return m_columns.size(); }
+
+        /** 获取前N列的总宽度（即这一组列的右边界X坐标，相对视口左边）
+        * @param [in] nColumnCount 列数；如果超出实际列数，则按实际列数计算（与历史行为一致）
+        * @return 返回宽度，如果无法计算则返回0
+        */
+        int32_t GetColumnsWidth(size_t nColumnCount) const
+        {
+            if (m_columns.empty() || (nColumnCount == 0)) {
+                return 0;
+            }
+            const size_t nIndex = (nColumnCount < m_columns.size()) ? (nColumnCount - 1) : (m_columns.size() - 1);
+            const int32_t nWidth = m_columns[nIndex].nXEnd;
+            return (nWidth > 0) ? nWidth : 0;
+        }
+    };
+
+    /** 单元格几何层：绘制 / 命中测试 / 网格线 / 冻结区 / 列X区间统一由此推导
+    *  内容坐标：子控件 GetRect() 所在坐标系，随滚动偏移移动
+    *  屏幕坐标：最终绘制 / 鼠标位置所在坐标系（不含 RenderOffset）
+    *  冻结列不随横向滚动移动，所以其内容坐标与屏幕坐标同值
+    *  （本结构由 A1 的 FrozenTransform 推广而来，冻结列是它的一个特例）
+    */
+    struct ListCtrlCellGeometry
+    {
+        /** 是否存在冻结列 */
+        bool bHasFrozen = false;
+
+        /** 冻结的列数 */
+        size_t nFrozenCount = 0;
+
+        /** 冻结区宽度（内容坐标与屏幕坐标同值） */
+        int32_t nFrozenWidth = 0;
+
+        /** 视口矩形（屏幕坐标，不包含内边距） */
+        UiRect rcViewport;
+
+        /** 当前滚动偏移 */
+        UiSize scrollPos;
+
+        /** 列布局表（各列X区间的唯一来源） */
+        ListCtrlColumnLayout columnLayout;
+
+        /** 冻结区的右边界（屏幕X坐标） */
+        int32_t FrozenRight() const { return rcViewport.left + nFrozenWidth; }
+
+        /** 屏幕X坐标是否落在冻结区内 */
+        bool IsFrozenX(int32_t screenX) const { return bHasFrozen && (screenX < FrozenRight()); }
+
+        /** 网格线：由"已扣除滚动偏移的内容X"推导屏幕X（冻结列不随横向滚动移动） */
+        int32_t GridLineScreenX(int32_t x, bool bFrozenColumn) const
+        {
+            return bFrozenColumn ? (x + scrollPos.cx) : x;
+        }
+
+        /** 绘制趟：推导裁剪区（屏幕）+ 绘制区（屏幕）+ 窗口原点偏移
+        * @param [in] bFrozenPass true表示绘制冻结列趟，false表示绘制可滚动区域趟
+        * @param [out] rcClip 裁剪矩形（屏幕坐标）
+        * @param [out] rcPaint 绘制矩形（屏幕坐标）
+        * @param [out] ptOffset 窗口原点偏移
+        */
+        void GetPaintPass(bool bFrozenPass, UiRect& rcClip, UiRect& rcPaint, UiPoint& ptOffset) const
+        {
+            rcClip = rcViewport;
+            rcPaint = rcViewport;
+            if (bHasFrozen) {
+                if (bFrozenPass) {
+                    //冻结列趟：只保留视口左侧的冻结区
+                    rcClip.right = FrozenRight();
+                    rcPaint.right = FrozenRight();
+                }
+                else {
+                    //可滚动区域趟：裁剪掉冻结区，绘制区左边界对齐到冻结区右侧（随横向滚动移动）
+                    rcClip.left = FrozenRight();
+                    rcPaint.Offset(scrollPos.cx, scrollPos.cy);
+                    rcPaint.left = FrozenRight() + scrollPos.cx;
+                }
+            }
+            else {
+                rcPaint.Offset(scrollPos.cx, scrollPos.cy);
+            }
+            //冻结列不随横向滚动移动，所以横向的窗口原点偏移量为0
+            ptOffset = bFrozenPass ? UiPoint(0, scrollPos.cy) : UiPoint(scrollPos.cx, scrollPos.cy);
+        }
+    };
+
+    /** 构建单元格几何层（一次推导，绘制 / 命中测试 / 网格线复用）
+    */
+    ListCtrlCellGeometry BuildCellGeometry() const;
+
+    /** 构建列布局表：由首个可见数据行的子项控件几何推导各列X区间；无可见数据行时回退到表头几何
+    * @param [in] nViewLeft 视口左边的X坐标（内容坐标的原点）
+    * @return 返回构建出的列布局表
+    */
+    ListCtrlColumnLayout BuildColumnLayout(int32_t nViewLeft) const;
+
+    /** 绘制单元格选择的高亮（选中区域半透明填充 + 当前格焦点框）
+    * @param [in] pRender 绘制接口
+    * @param [in] cellGeometry 单元格几何层
+    * @param [in] bFrozenPass 是否绘制冻结列趟
+    */
+    void PaintCellSelection(IRender* pRender, const ListCtrlCellGeometry& cellGeometry, bool bFrozenPass);
 
     /** 将header和置顶项放在最后
     * @param [in,out] items 需要移动的控件列表
     * @param [out] atTopItems 返回置顶的控件列表
     */
     void MoveTopItemsToLast(std::vector<Control*>& items, std::vector<Control*>& atTopItems) const;
+
+    /** 给出该单元格的数据填充回调
+    * @param [in] nListBoxIndex 界面中，本行的UI控件容器索引号，范围：[0, GetItemCount())
+    * @param [in] nElementIndex 数据元素的索引号, 有效范围：[0, GetDataItemCount())
+    * @param [in] pItem 数据项的界面容器接口（对应行）
+    * @param [in] pSubItem 数据项单元格的界面容器接口，对应单元格。如果为nullptr，表示本行所有单元格均做了数据填充；如果不为nullptr，表示本次事件只填充了该单元格
+    */
+    void SendEventReportViewItemFilled(size_t nListBoxIndex, size_t nElementIndex,
+                                       ListCtrlItem* pItem, ListCtrlSubItem* pSubItem);
 
 private:
     /** ListCtrl 控件接口
@@ -326,6 +627,10 @@ private:
     /** 纵向网格线的颜色
     */
     UiString m_columnGridLineColor;
+
+    /** 冻结列命中遍历标记：为true时，本控件对外的横向滚动量按0计（冻结列不随横向滚动移动）
+    */
+    bool m_bFrozenHitTestPass;
 };
 
 /** 列表数据显示控件的布局管理接口

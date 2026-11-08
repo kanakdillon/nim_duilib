@@ -71,9 +71,10 @@ RichEdit2::RichEdit2(Window* pWindow) :
     m_bEnableWheelZoom(false),
     m_bEnableDefaultContextMenu(false),
     m_bDisableTextChangeEvent(false),
-    m_maxNumber(INT_MAX),
-    m_minNumber(INT_MIN),
+    m_maxNumber(INT64_MAX),
+    m_minNumber(INT64_MIN),
     m_pSpinBox(nullptr),
+    m_nSpinStep(1),
     m_pClearButton(nullptr),
     m_pShowPasswordButton(nullptr),
     m_bReadOnly(false),
@@ -171,10 +172,10 @@ void RichEdit2::SetAttribute(const DString& strName, const DString& strValue2)
         SetNumberOnly(StringUtil::IsValueTrue(strValue));
     }
     else if (strName == _T("max_number")) {
-        SetMaxNumber(StringUtil::StringToInt32(strValue));
+        SetMaxNumber(StringUtil::StringToInt64(strValue));
     }
     else if (strName == _T("min_number")) {
-        SetMinNumber(StringUtil::StringToInt32(strValue));
+        SetMinNumber(StringUtil::StringToInt64(strValue));
     }
     else if (strName == _T("number_format")) {
         SetNumberFormat64(strValue);
@@ -630,22 +631,22 @@ void RichEdit2::SetNumberOnly(bool bNumberOnly)
     m_bNumberOnly = bNumberOnly;
 }
 
-void RichEdit2::SetMaxNumber(int32_t maxNumber)
+void RichEdit2::SetMaxNumber(int64_t maxNumber)
 {
     m_maxNumber = maxNumber;
 }
 
-int32_t RichEdit2::GetMaxNumber() const
+int64_t RichEdit2::GetMaxNumber() const
 {
     return m_maxNumber;
 }
 
-void RichEdit2::SetMinNumber(int32_t minNumber)
+void RichEdit2::SetMinNumber(int64_t minNumber)
 {
     m_minNumber = minNumber;
 }
 
-int32_t RichEdit2::GetMinNumber() const
+int64_t RichEdit2::GetMinNumber() const
 {
     return m_minNumber;
 }
@@ -2788,13 +2789,13 @@ bool RichEdit2::SetSpinClass(const DString& spinClass)
         //挂载事件处理
         pUpButton->DetachEvent(kEventClick);
         pUpButton->AttachClick([this](const EventArgs& /*args*/){
-            AdjustTextNumber(1);
+            AdjustTextNumber(GetSpinStep());
             return true;
             });
 
         pUpButton->DetachEvent(kEventMouseButtonDown);
         pUpButton->AttachButtonDown([this](const EventArgs& /*args*/) {
-            StartAutoAdjustTextNumberTimer(1);
+            StartAutoAdjustTextNumberTimer(GetSpinStep());
             return true;
             });
 
@@ -2813,13 +2814,13 @@ bool RichEdit2::SetSpinClass(const DString& spinClass)
         pDownButton->DetachEvent(kEventClick);
         pDownButton->AttachClick([this](const EventArgs& /*args*/) {
             StopAutoAdjustTextNumber();
-            AdjustTextNumber(-1);
+            AdjustTextNumber(-GetSpinStep());
             return true;
             });
 
         pDownButton->DetachEvent(kEventMouseButtonDown);
         pDownButton->AttachButtonDown([this](const EventArgs& /*args*/) {
-            StartAutoAdjustTextNumberTimer(-1);
+            StartAutoAdjustTextNumberTimer(-GetSpinStep());
             return true;
             });
 
@@ -2845,7 +2846,7 @@ bool RichEdit2::SetSpinClass(const DString& spinClass)
     return false;
 }
 
-bool RichEdit2::SetEnableSpin(bool bEnable, const DString& spinClass, int32_t nMin, int32_t nMax)
+bool RichEdit2::SetEnableSpin(bool bEnable, const DString& spinClass, int64_t nMin, int64_t nMax)
 {
     bool bRet = false;
     if (bEnable) {
@@ -2868,8 +2869,8 @@ bool RichEdit2::SetEnableSpin(bool bEnable, const DString& spinClass, int32_t nM
         bRet = true;
         if (hasSpin) {
             SetNumberOnly(false);
-            SetMaxNumber(INT_MAX);
-            SetMinNumber(INT_MIN);
+            SetMaxNumber(INT64_MAX);
+            SetMinNumber(INT64_MIN);
         }        
     }
     return bRet;
@@ -2907,7 +2908,7 @@ void RichEdit2::AdjustTextNumber(int32_t nDelta)
     if (IsNumberOnly()) {
         const int64_t nOldValue = GetTextNumber();
         int64_t nNewValue = nOldValue + nDelta;
-        if (((GetMinNumber() != INT_MIN) || (GetMaxNumber() != INT_MAX))) {
+        if (((GetMinNumber() != INT64_MIN) || (GetMaxNumber() != INT64_MAX))) {
             if (nNewValue > GetMaxNumber()) {
                 //超过最大数字，进行修正
                 nNewValue = GetMaxNumber();
@@ -2954,6 +2955,19 @@ void RichEdit2::StartAutoAdjustTextNumber(int32_t nDelta)
 void RichEdit2::StopAutoAdjustTextNumber()
 {
     m_flagAdjustTextNumber.Cancel();
+}
+
+void RichEdit2::SetSpinStep(int32_t nStep)
+{
+    ASSERT(nStep > 0);
+    if (nStep > 0) {
+        m_nSpinStep = nStep;
+    }
+}
+
+int32_t RichEdit2::GetSpinStep() const
+{
+    return m_nSpinStep;
 }
 
 void RichEdit2::SetReplaceNewline(bool bReplaceNewline)
@@ -3733,10 +3747,10 @@ bool RichEdit2::OnArrowKeyDown(const EventArgs& msg)
     if (IsNumberOnly() && !IsReadOnly() && IsEnabled() && ((msg.vkCode == kVK_UP) || (msg.vkCode == kVK_DOWN))) {
         //数字模式，方向键调整数字大小
         if (msg.vkCode == kVK_UP) {
-            AdjustTextNumber(1);
+            AdjustTextNumber(GetSpinStep());
         }
         else {
-            AdjustTextNumber(-1);
+            AdjustTextNumber(-GetSpinStep());
         }        
         return true;
     }
@@ -4852,7 +4866,7 @@ void RichEdit2::OnInputChar(const EventArgs& msg)
     }
 
     //是否检测数字模式
-    bool bCheckNumberOnly = IsNumberOnly() && ((GetMinNumber() != INT_MIN) || (GetMaxNumber() != INT_MAX));
+    bool bCheckNumberOnly = IsNumberOnly() && ((GetMinNumber() != INT64_MIN) || (GetMaxNumber() != INT64_MAX));
     DStringW oldText;
     if (bCheckNumberOnly) {
         oldText = m_pTextData->GetText();
@@ -4891,14 +4905,14 @@ void RichEdit2::OnInputChar(const EventArgs& msg)
             int64_t n = StringUtil::StringToInt64(newText);
             if (n < GetMinNumber()) {
                 //超过最小数字，进行修正
-                int32_t newValue = GetMinNumber();
-                SetTextNoEvent(StringUtil::Printf(_T("%d"), newValue));
+                int64_t newValue = GetMinNumber();
+                SetTextNoEvent(StringUtil::Int64ToString(newValue));
                 bTextChanged = (oldText != m_pTextData->GetText()) ? true : false;
             }
             else if (n > GetMaxNumber()) {
                 //超过最大数字，进行修正
-                int32_t newValue = GetMaxNumber();
-                SetTextNoEvent(StringUtil::Printf(_T("%d"), newValue));
+                int64_t newValue = GetMaxNumber();
+                SetTextNoEvent(StringUtil::Int64ToString(newValue));
                 bTextChanged = (oldText != m_pTextData->GetText()) ? true : false;
             }
         }

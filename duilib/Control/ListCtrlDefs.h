@@ -16,6 +16,59 @@ enum class ListCtrlType: int8_t
     List   = 2  //List类型
 };
 
+/** 列表的选择模式
+*/
+enum class ListCtrlSelectionMode : int8_t
+{
+    kRow  = 0,  //行选择模式（默认）
+    kCell = 1   //单元格选择模式
+};
+
+/** 单元格的编辑器类型（按列声明）
+*/
+enum class ListCtrlEditorType : int8_t
+{
+    kEditText   = 0, //文本编辑器（默认）
+    kEditNumber = 1, //数值编辑器（提交时校验：允许为空，或为合法的十进制数值）
+    kEditDate   = 2, //日期编辑器（提交时校验：允许为空，或为 yyyy-mm-dd / yyyy/mm/dd）
+    kEditCombo  = 3  //下拉候选编辑器（候选值按列配置，参见 ListCtrl::SetColumnCandidatesById）
+};
+
+/** 表格中单元格的定位标识（CellId）
+    行使用"显示序索引"，列使用"列ID"（与既有列宽/列序/显隐/排序均按columnId组织保持一致：列序可变、列ID稳定）
+*/
+struct ListCtrlCellId
+{
+    size_t nRowIndex = Box::InvalidIndex;   //行的显示索引号，有效范围：[0, GetDataItemCount())
+    size_t nColumnId = Box::InvalidIndex;   //列的ID
+
+    /** 判断是否为有效的单元格
+    */
+    bool IsValid() const { return (nRowIndex != Box::InvalidIndex) && (nColumnId != Box::InvalidIndex); }
+
+    bool operator==(const ListCtrlCellId& r) const { return (nRowIndex == r.nRowIndex) && (nColumnId == r.nColumnId); }
+    bool operator!=(const ListCtrlCellId& r) const { return !(*this == r); }
+};
+
+/** 单元格的选择区域（规范化后的矩形区域：行范围 + 列范围）
+    行使用显示序索引，列使用列ID（按当前列序规范化：nColumnIdBegin 对应的列序靠前）
+*/
+struct ListCtrlCellRange
+{
+    size_t nRowBegin = Box::InvalidIndex;      //起始行索引（显示序，nRowBegin <= nRowEnd）
+    size_t nRowEnd = Box::InvalidIndex;        //结束行索引（显示序）
+    size_t nColumnIdBegin = Box::InvalidIndex; //起始列ID（按当前列序靠前）
+    size_t nColumnIdEnd = Box::InvalidIndex;   //结束列ID（按当前列序靠后）
+
+    /** 判断是否为有效的区域
+    */
+    bool IsValid() const
+    {
+        return (nRowBegin != Box::InvalidIndex) && (nRowEnd != Box::InvalidIndex) &&
+               (nColumnIdBegin != Box::InvalidIndex) && (nColumnIdEnd != Box::InvalidIndex);
+    }
+};
+
 /** 列的基本信息（用于添加列）
 */
 struct ListCtrlColumn
@@ -31,6 +84,7 @@ struct ListCtrlColumn
     bool bResizeable = true;        //是否支持通过拖动调整列宽
     bool bShowCheckBox = false;     //是否显示CheckBox（支持在表头和数据列显示CheckBox）
     bool bNeedDpiScale = true;      //是否对数值做DPI自适应
+    ListCtrlEditorType nEditorType = ListCtrlEditorType::kEditText; //单元格编辑器类型（用于提交时的输入校验）
 };
 
 /** 行的属性数据结构(行数据，每行1条数据，数据存储)
@@ -58,9 +112,11 @@ struct ListCtrlSubItemData
     uint64_t userDataN = 0;         //用户自定义数据(整型)
     UiString userDataS;             //用户自定义数据(字符串类型)
     int32_t nSortGroup = 0;         //所属分组（比如文件夹和文件可分为两组，排序后，文件夹和文件是分开的）
+    int32_t nProgress = -1;         //进度值(进度条单元格)，有效范围[0, 100]，-1表示不显示进度条
     bool bShowCheckBox = false;     //是否显示CheckBox
     bool bChecked = false;          //是否处于勾选状态（CheckBox勾选状态）
     bool bEditable = false;         //是否可编辑
+    bool bRichText = false;         //是否将text按富文本（类HTML格式）渲染
 };
 
 /** 列表数据项用于内部存储的数据结构(列数据，每<行,列>1条数据，数据存储)
@@ -77,11 +133,11 @@ struct ListCtrlSubItemData2
     uint64_t userDataN = 0;         //用户自定义数据(整型)
     UiString userDataS;             //用户自定义数据(字符串类型)
     int32_t nSortGroup = 0;         //所属分组（比如文件夹和文件可分为两组，排序后，文件夹和文件是分开的）
+    int8_t nProgress = -1;          //进度值(进度条单元格)，有效范围[0, 100]，-1表示不显示进度条
+                                    //(内部存储使用最小宽度类型，避免每<行,列>一条数据时浪费内存；对外接口仍为int32_t)
     bool bEditable = false;         //是否可编辑
+    bool bRichText = false;         //是否将text按富文本（类HTML格式）渲染
 };
-
-//列数据的智能指针
-typedef std::shared_ptr<ListCtrlSubItemData2> ListCtrlSubItemData2Ptr;
 
 /** 列表中数据排序标志（按位与操作）
 */
@@ -92,13 +148,16 @@ enum ListCtrlSubItemSortFlag : uint8_t
     kSortNoCase         = 2,    //当排序目标是字符串时，比较字符串不区分大小写
     kSortByText         = 4,    //按照ListCtrlSubItemData2.text字段排序（默认）
     kSortByUserDataN    = 8,    //按照ListCtrlSubItemData2.userDataN字段排序
-    kSortByUserDataS    = 16,    //按照ListCtrlSubItemData2.kSortByUserDataS字段排序
+    kSortByUserDataS    = 16,   //按照ListCtrlSubItemData2.kSortByUserDataS字段排序
+    kSortByProgress     = 32,   //按照ListCtrlSubItemData2.nProgress字段排序（显式声明，替代早期"按单元格nProgress推断"的行为）
+    kSortByTextAsNumber = 64,   //将text按数值比较排序（如"10" > "9"），而非按字符串字典序
+    kSortByTextAsDate   = 128,  //将text按日期时间比较排序（如"2024-3-7" < "2024-10-1"），而非按字符串字典序
 };
 
 struct ListCtrlSubItemData2Pair
 {
     size_t nColumnId = 0; //列的ID
-    ListCtrlSubItemData2Ptr pSubItemData; //列的数据
+    const ListCtrlSubItemData2* pSubItemData = nullptr; //列的数据
 };
 
 /** 比较数据的附加信息
@@ -147,7 +206,7 @@ public:
     * @param [in] subItemList 数据子项（代表每一列的数据）
     * @return 返回该列宽度的最大值，返回的是DPI自适应后的值； 如果失败返回-1
     */
-    virtual int32_t GetMaxDataItemWidth(const std::vector<ListCtrlSubItemData2Ptr>& subItemList) = 0;
+    virtual int32_t GetMaxDataItemWidth(const std::vector<const ListCtrlSubItemData2*>& subItemList) = 0;
 };
 
 /** 编辑状态的输入参数

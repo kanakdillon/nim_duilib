@@ -381,7 +381,9 @@ void LabelImpl::SetRichText(bool bRichText)
 {
     if (m_bRichText != bRichText) {
         m_bRichText = bRichText;
-        m_pOwner->Invalidate();
+        //普通文本与富文本的解析、测量结果不同，需要使绘制缓存失效并重新布局
+        m_pTextDrawer->SetTextChanged();
+        m_pOwner->RelayoutOrRedraw();
     }
 }
 
@@ -635,8 +637,12 @@ bool LabelImpl::HasHoveredStateColor()
 
 UiSize LabelImpl::OnEstimateText(UiSize szAvailable)
 {
+    return OnEstimateTextWith(GetOwnerText(), szAvailable);
+}
+
+UiSize LabelImpl::OnEstimateTextWith(const DString& textValue, UiSize szAvailable)
+{
     UiSize fixedSize;
-    const DString textValue = GetOwnerText();
     if (textValue.empty()) {
         //文本为空时，宽度和高度估算结果均为0
         return fixedSize;
@@ -880,6 +886,12 @@ DString LabelImpl::GetStateTextColor(ControlStateType stateType) const
 
 void LabelImpl::SetStateTextColor(ControlStateType stateType, const DString& dwTextColor)
 {
+    if (m_pTextColorMap != nullptr) {
+        if (m_pTextColorMap->EqualsStateColor(stateType, dwTextColor)) {
+            //颜色未变化：无需重复设置（避免列表/表格滚动重填时反复写入颜色并触发重绘）
+            return;
+        }
+    }
     if (stateType == kControlStateHovered) {
         m_pOwner->SetFadeHovered(true);
     }

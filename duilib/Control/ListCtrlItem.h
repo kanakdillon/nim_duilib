@@ -76,10 +76,10 @@ public:
     */
     size_t GetSubItemCount() const;
 
-    /** 获取第columnIndex个子控件
-    * @param [in] columnIndex 列索引序号：[0, GetSubItemCount())
+    /** 获取第nSubItemIndex个子控件
+    * @param [in] nSubItemIndex 列索引序号：[0, GetSubItemCount())
     */
-    ListCtrlSubItem* GetSubItem(size_t columnIndex) const;
+    ListCtrlSubItem* GetSubItem(size_t nSubItemIndex) const;
 
     /** 获取鼠标所在位置的子控件
     * @param [in] ptMouse 鼠标所在的位置，屏幕坐标点
@@ -148,6 +148,18 @@ protected:
     */
     virtual bool ButtonUp(const EventArgs& msg) override;
 
+    /** 鼠标左键按下事件（单元格选择模式下跳过行选择逻辑）
+    */
+    virtual bool ButtonDown(const EventArgs& msg) override;
+
+    /** 鼠标进入事件（单元格选择模式下不进入行级悬停状态，避免行级高亮与悬停渐隐动画）
+    */
+    virtual bool MouseEnter(const EventArgs& msg) override;
+
+    /** 鼠标离开事件（单元格选择模式下不启动悬停渐隐动画，仅清除焦点带来的行级悬停状态）
+    */
+    virtual bool MouseLeave(const EventArgs& msg) override;
+
     /** 是否支持勾选模式（目前是TreeView/ListCtrl在使用这个模式）
         勾选模式是指：
         （1）只有点击在CheckBox图片上的时候，勾选框图片才是选择状态（非勾选模式下，是点击在控件矩形内就选择）
@@ -155,9 +167,22 @@ protected:
     */
     virtual bool SupportCheckMode() const override;
 
+    /** 将鼠标点（窗口客户区坐标）换算到用于判定CheckBox图标命中的控件坐标空间
+    *   行首的CheckBox和图标固定显示在行的最左侧，位于冻结列区域内（不随横向滚动移动），
+    *   存在冻结列时，横向的滚动量需要按0计，保证点击判定与冻结列的显示位置一致
+    * @param [in] ptMouse 鼠标点（窗口客户区坐标）
+    * @return 返回换算后的控件坐标空间中的点
+    */
+    virtual UiPoint GetCheckBoxMousePos(const UiPoint& ptMouse) const override;
+
     /** 绘制函数
     */
     virtual void Paint(IRender* pRender, const UiRect& rcPaint) override;
+
+    /** 绘制控件的状态颜色
+    *   单元格选择模式下，屏蔽行级的悬停/按下状态颜色（行级高亮视觉是行选择模式专属）
+    */
+    virtual void PaintStateColors(IRender* pRender) override;
 
 private:
     /** 是否可以选择（影响方向键切换选择项）

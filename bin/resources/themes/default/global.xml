@@ -24,15 +24,18 @@
     <Var name="PATH_SCROLLBAR_STANDARD" value="public/scrollbar02"/>
     <Var name="PATH_BUTTON" value="public/button"/>
     <Var name="PATH_CHECKBOX" value="public/checkbox"/>
+    <Var name="PATH_SWITCH" value="public/switch"/>
     <Var name="PATH_OPTION" value="public/option"/>
     <Var name="PATH_TREE" value="public/tree"/>
     <Var name="PATH_LISTCTRL" value="public/listctrl"/>
     <Var name="PATH_ADDRESS_BAR" value="public/address_bar"/>
     <Var name="PATH_PROGRESS" value="public/progress"/>
     <Var name="PATH_SLIDER" value="public/slider"/>
+    <Var name="PATH_STEPPER" value="public/stepper"/>
     <Var name="PATH_CAPTION" value="public/caption"/>
     <Var name="PATH_COMBO" value="public/combo"/>
     <Var name="PATH_MENU" value="public/menu"/>
+    <Var name="PATH_SEARCHBOX" value="public/searchbox"/>
     
     <!-- 字体文件（放在资源根目录的fonts目录中），程序启动时加载，加载后可以按照使用系统字体相同的方式使用 -->
     <!-- 注意事项：该RobotoMono字体只能用于显示英文字母，不支持中文 -->
@@ -60,37 +63,49 @@
     
     <!-- 系统字体：按 字体类型_样式_字号 命名 --> 
     <Font id="system_regular_12" name="system" size="12"/>
+    <Font id="system_regular_13" name="system" size="13"/>
     <Font id="system_regular_14" name="system" size="14" default="true"/>
+    <Font id="system_regular_15" name="system" size="15"/>
     <Font id="system_regular_16" name="system" size="16"/>
     <Font id="system_regular_18" name="system" size="18"/>
     <Font id="system_regular_20" name="system" size="20"/>
     <Font id="system_regular_22" name="system" size="22"/>
     <Font id="system_bold_12" name="system" size="12" bold="true"/>
+    <Font id="system_bold_13" name="system" size="13" bold="true"/>
     <Font id="system_bold_14" name="system" size="14" bold="true"/>
+    <Font id="system_bold_15" name="system" size="15" bold="true"/>
     <Font id="system_bold_16" name="system" size="16" bold="true"/>
     <Font id="system_bold_18" name="system" size="18" bold="true"/>
     <Font id="system_bold_20" name="system" size="20" bold="true"/>
     <Font id="system_bold_22" name="system" size="22" bold="true"/>
     <Font id="system_underline_12" name="system" size="12" underline="true"/>
+    <Font id="system_underline_13" name="system" size="13" underline="true"/>
     <Font id="system_underline_14" name="system" size="14" underline="true"/>
+    <Font id="system_underline_15" name="system" size="15" underline="true"/>
     <Font id="system_underline_16" name="system" size="16" underline="true"/>
     <Font id="system_underline_18" name="system" size="18" underline="true"/>
     <Font id="system_underline_20" name="system" size="20" underline="true"/>
     <Font id="system_underline_22" name="system" size="22" underline="true"/>
     <Font id="system_italic_12" name="system" size="12" italic="true"/>
+    <Font id="system_italic_13" name="system" size="13" italic="true"/>
     <Font id="system_italic_14" name="system" size="14" italic="true"/>
+    <Font id="system_italic_15" name="system" size="15" italic="true"/>
     <Font id="system_italic_16" name="system" size="16" italic="true"/>
     <Font id="system_italic_18" name="system" size="18" italic="true"/>
     <Font id="system_italic_20" name="system" size="20" italic="true"/>
     <Font id="system_italic_22" name="system" size="22" italic="true"/>
     <Font id="system_strikeout_12" name="system" size="12" strikeout="true"/>
+    <Font id="system_strikeout_13" name="system" size="13" strikeout="true"/>
     <Font id="system_strikeout_14" name="system" size="14" strikeout="true"/>
+    <Font id="system_strikeout_15" name="system" size="15" strikeout="true"/>
     <Font id="system_strikeout_16" name="system" size="16" strikeout="true"/>
     <Font id="system_strikeout_18" name="system" size="18" strikeout="true"/>
     <Font id="system_strikeout_20" name="system" size="20" strikeout="true"/>
     <Font id="system_strikeout_22" name="system" size="22" strikeout="true"/>
     <Font id="system_fullstyle_12" name="system" size="12" italic="true" strikeout="true" underline="true" bold="true"/>
+    <Font id="system_fullstyle_13" name="system" size="13" italic="true" strikeout="true" underline="true" bold="true"/>
     <Font id="system_fullstyle_14" name="system" size="14" italic="true" strikeout="true" underline="true" bold="true"/>
+    <Font id="system_fullstyle_15" name="system" size="15" italic="true" strikeout="true" underline="true" bold="true"/>
     <Font id="system_fullstyle_16" name="system" size="16" italic="true" strikeout="true" underline="true" bold="true"/>
     <Font id="system_fullstyle_18" name="system" size="18" italic="true" strikeout="true" underline="true" bold="true"/>
     <Font id="system_fullstyle_20" name="system" size="20" italic="true" strikeout="true" underline="true" bold="true"/>
@@ -252,10 +267,10 @@
                                         pressed_color="#B71D22"/>
                               
     <!-- 单选框 -->
-    <Class name="option_1" height="20" text_padding="22,0,0,0" text_align="vcenter" valign="center"
+    <Class name="option_1" width="auto" height="20" padding="2,0,2,0" text_padding="22,0,0,0" text_align="vcenter,left" valign="center"
                            normal_image="file='${PATH_OPTION}/radio-circle-unchecked.svg' width='20' height='20' valign='center'" 
                            selected_normal_image="file='${PATH_OPTION}/radio-circle-checked.svg' width='20' height='20' valign='center'"/>
-    <Class name="option_2" height="18" text_padding="20,0,0,0" text_align="vcenter" valign="center"
+    <Class name="option_2" width="auto" height="18" padding="2,0,2,0" text_padding="20,0,0,0" text_align="vcenter,left" valign="center"
                            normal_image="file='${PATH_OPTION}/radio-unchecked.svg' width='16' height='16' valign='center'" 
                            selected_normal_image="file='${PATH_OPTION}/radio-checked.svg' width='16' height='16' valign='center'"/>
     
@@ -264,8 +279,38 @@
                                     normal_image="file='${PATH_CHECKBOX}/checkbox-toggle-off.svg' height='18' valign='center' halign='center'" 
                                     selected_normal_image="file='${PATH_CHECKBOX}/checkbox-toggle-on.svg' height='18' valign='center' halign='center' svg_replace_colors='#34C759|color_accent'"/>
     <Class name="checkbox_toggle_2" height="22" width="44" valign="center"
-                                    normal_image="file='${PATH_CHECKBOX}/checkbox-toggle2-off.svg' height='20' valign='center' halign='center'" 
+                                    normal_image="file='${PATH_CHECKBOX}/checkbox-toggle2-off.svg' height='20' valign='center' halign='center'"
                                     selected_normal_image="file='${PATH_CHECKBOX}/checkbox-toggle2-on.svg' height='20' valign='center' halign='center' svg_replace_colors='#0078D4|color_accent'"/>
+    <!-- 滑块开关（Switch）：三套默认皮肤，轨道语义色自绘/图片均支持深浅色主题 -->
+    <!-- iOS 风格：51x31，白色大滑块带柔和投影，轨道颜色随主题色 -->
+    <Class name="switch" height="31" width="51" valign="center" cursor_type="hand"
+                                    thumb_off_image="file='${PATH_SWITCH}/switch_ios_thumb.svg'"
+                                    thumb_on_image="file='${PATH_SWITCH}/switch_ios_thumb.svg'"/>
+    <Class name="switch_ios" height="31" width="51" valign="center" cursor_type="hand"
+                                    thumb_off_image="file='${PATH_SWITCH}/switch_ios_thumb.svg'"
+                                    thumb_on_image="file='${PATH_SWITCH}/switch_ios_thumb.svg'"/>
+    <!-- Fluent(Windows 11) 风格：48x24，描边小轨道 + 14px 小滑块 -->
+    <Class name="switch_fluent" height="24" width="48" padding="2,2,2,2" valign="center" cursor_type="hand"
+                                    track_off_image="file='${PATH_SWITCH}/switch_fluent_track_off.svg' svg_replace_colors='#E9E9EA|bg_switch_track_off;#8A8886|bg_switch_thumb_off'"
+                                    track_on_image="file='${PATH_SWITCH}/switch_fluent_track_on.svg' svg_replace_colors='#0078D4|bg_switch_track_on'"
+                                    thumb_off_image="file='${PATH_SWITCH}/switch_fluent_thumb_off.svg' svg_replace_colors='#8A8886|bg_switch_thumb_off'"
+                                    thumb_on_image="file='${PATH_SWITCH}/switch_fluent_thumb_on.svg'"/>
+    <!-- Material Design 3 风格：52x32，描边轨道，未选中小滑块/选中大滑块带对勾 -->
+    <Class name="switch_material" height="32" width="52" valign="center" cursor_type="hand"
+                                    track_off_image="file='${PATH_SWITCH}/switch_material_track_off.svg' svg_replace_colors='#79747E|bg_switch_thumb_off'"
+                                    track_on_image="file='${PATH_SWITCH}/switch_material_track_on.svg' svg_replace_colors='#6750A4|color_accent'"
+                                    thumb_off_image="file='${PATH_SWITCH}/switch_material_thumb_off.svg' svg_replace_colors='#49454F|bg_switch_thumb_off'"
+                                    thumb_on_image="file='${PATH_SWITCH}/switch_material_thumb_on.svg' svg_replace_colors='#6750A4|color_accent'"/>
+
+    <!-- 角标（Badge）：未读数/小红点，count<=0 时自动隐藏；悬浮定位用 float="true" + margin -->
+    <Class name="badge" width="auto" height="18" valign="center" font="system_regular_12"
+                                    normal_text_color="text_badge" text_padding="5,0,5,0" text_align="center" mouse_enabled="false"/>
+    <Class name="badge_dot" width="8" height="8" dot="true" valign="center" mouse_enabled="false"/>
+
+    <!-- 遮罩/蒙版层（Mask）：半透明蒙层，默认铺满父容器并拦截鼠标输入；可用 highlight_control 镂空高亮指定控件 -->
+    <Class name="mask" float="true" width="stretch" height="stretch" mask_color="bg_overlay"/>
+    
+    <!-- CheckBox控件 -->
     <Class name="checkbox_1" height="20" text_padding="20,0,0,0" text_align="vcenter" valign="center"
                              normal_image="file='${PATH_CHECKBOX}/checkbox-fill-unchecked.svg' width='16' height='16' valign='center'" 
                              disabled_image="file='${PATH_CHECKBOX}/checkbox-fill-unchecked.svg' width='16' height='16' valign='center' fade='80'" 
@@ -373,23 +418,48 @@
                                          progress_bar_padding="0,5,0,5" 
                                          progress_image="${PATH_SLIDER}/slider_blue_fg.png"
                                          bkimage="file='${PATH_SLIDER}/slider_hor_bk.png' valign='center' height='4' width='1200'" 
-                                         thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"/>
+                                         thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"
+                                         thumb_hovered_image="file='${PATH_SLIDER}/slider_thumb_hovered.svg' width='14' height='14'"
+                                         thumb_pressed_image="file='${PATH_SLIDER}/slider_thumb_pressed.svg' width='14' height='14'"/>
     <Class name="slider_vertical_blue"   horizontal="false" width="14" height="stretch" margin="0,4,0,0" halign="center" 
                                          thumb_size="14,14" min="0" max="255" 
                                          progress_bar_padding="5,0,5,0" 
                                          progress_image="${PATH_SLIDER}/slider_blue_fg_ver.png"
                                          bkimage="file='${PATH_SLIDER}/slider_ver_bk.png' halign='center' width='4' height='1200'" 
-                                         thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"/>
+                                         thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"
+                                         thumb_hovered_image="file='${PATH_SLIDER}/slider_thumb_hovered.svg' width='14' height='14'"
+                                         thumb_pressed_image="file='${PATH_SLIDER}/slider_thumb_pressed.svg' width='14' height='14'"/>
     <Class name="slider_horizontal" horizontal="true" width="stretch" height="14" margin="4,0,0,0" valign="center" 
                                     thumb_size="14,14" min="0" max="255" 
                                     progress_bar_padding="0,5,0,5" 
                                     progress_color="bg_progress" bkcolor="bg_progress_track" 
-                                    thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"/>
+                                    thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"
+                                         thumb_hovered_image="file='${PATH_SLIDER}/slider_thumb_hovered.svg' width='14' height='14'"
+                                         thumb_pressed_image="file='${PATH_SLIDER}/slider_thumb_pressed.svg' width='14' height='14'"/>
     <Class name="slider_vertical" horizontal="false" width="14" height="stretch" margin="0,4,0,0" halign="center" 
                                   thumb_size="14,14" min="0" max="255" 
                                   progress_bar_padding="5,0,5,0" 
                                   progress_color="bg_progress" bkcolor="bg_progress_track"
-                                  thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"/>
+                                  thumb_normal_image="file='${PATH_SLIDER}/slider_thumb.svg' width='14' height='14'"
+                                         thumb_hovered_image="file='${PATH_SLIDER}/slider_thumb_hovered.svg' width='14' height='14'"
+                                         thumb_pressed_image="file='${PATH_SLIDER}/slider_thumb_pressed.svg' width='14' height='14'"/>
+    <!-- 双滑块范围选择控件 -->
+    <Class name="range_slider_horizontal" horizontal="true" width="stretch" height="20" margin="4,0,0,0" valign="center" 
+                                          thumb_size="14,14" min="0" max="100" 
+                                          range_color="bg_progress" bkcolor="bg_progress_track" range_radius="2"
+                                          thumb_normal_image="file='${PATH_SLIDER}/range_slider_thumb_normal.svg' width='14' height='14'"
+                                          thumb_hovered_image="file='${PATH_SLIDER}/range_slider_thumb_hovered.svg' width='14' height='14'"
+                                          thumb_pressed_image="file='${PATH_SLIDER}/range_slider_thumb_pressed.svg' width='14' height='14'"/>
+    <Class name="range_slider_vertical" horizontal="false" width="20" height="stretch" margin="0,4,0,0" halign="center" 
+                                        thumb_size="14,14" min="0" max="100" 
+                                        range_color="bg_progress" bkcolor="bg_progress_track" range_radius="2"
+                                        thumb_normal_image="file='${PATH_SLIDER}/range_slider_thumb_normal.svg' width='14' height='14'"
+                                        thumb_hovered_image="file='${PATH_SLIDER}/range_slider_thumb_hovered.svg' width='14' height='14'"
+                                        thumb_pressed_image="file='${PATH_SLIDER}/range_slider_thumb_pressed.svg' width='14' height='14'"/>
+    <!-- 步骤条（Stepper）：节点悬停/按下态光晕环图标（颜色跟随主题强调色） -->
+    <Class name="stepper_node" 
+           node_hovered_image="file='${PATH_STEPPER}/stepper_node_hovered.svg' width='48' height='48' svg_replace_colors='#0078D4|color_accent'"
+           node_pressed_image="file='${PATH_STEPPER}/stepper_node_pressed.svg' width='48' height='48' svg_replace_colors='#0078D4|color_accent'"/>
     <!-- 菜单 -->
     <Class name="menu" width="auto" height="auto" bkcolor="bg_menu"/>
     <Class name="menu_element" height="32" padding="20,0,20,0" margin="1,1,1,1" 
@@ -531,6 +601,69 @@
                                                     hovered_color="bg_richedit_btn_hovered" 
                                                     pressed_color="bg_richedit_btn_pressed"
                                                     disabled_color="bg_richedit_btn_disabled"/>    
+
+    <!-- 搜索框控件（SearchBox） -->
+    <Class name="search_box" width="220" height="32" padding="1,1,1,1" bkcolor="bg_richedit" border_size="1" border_round="4,4"
+                                border_color="border_richedit_normal"
+                                hovered_border_color="border_richedit_hovered"/>
+    <Class name="search_box_icon" width="16" height="16" margin="8,0,6,0" valign="center" halign="left"
+                                   bkimage="file='${PATH_SEARCHBOX}/search.svg' width='16' height='16' valign='center' halign='center' svg_replace_colors='#333333|border_svg_image'"/>
+    <Class name="search_box_edit" class="richedit_base" width="stretch" text_align="vcenter" text_padding="0,0,2,0" margin="0,0,2,0"
+                                  prompt_mode="true" prompt_color="text_richedit_prompt"/>
+    <Class name="search_box_clear_btn" height="22" width="24" border_round="4,4" margin="0,0,2,0" halign="right" valign="center"
+                                             normal_image="file='${PATH_BUTTON}/window-close.svg' width='16' height='16' valign='center' halign='center' svg_replace_colors='#333333|border_svg_image'"
+                                             normal_color="bg_richedit_btn_normal"
+                                             hovered_color="bg_richedit_btn_hovered"
+                                             pressed_color="bg_richedit_btn_pressed"
+                                             disabled_color="bg_richedit_btn_disabled"/>
+
+    <!-- 标签输入框控件（TagInput） -->
+    <Class name="tag_input" width="260" height="auto" min_height="34" padding="4,4,4,4" child_margin="4"
+                             bkcolor="bg_richedit" border_size="1" border_round="4,4"
+                             border_color="border_richedit_normal"
+                             hovered_border_color="border_richedit_hovered"/>
+    <Class name="tag_input_tag" width="auto" height="24" border_round="3,3" valign="center"
+                              bkcolor="bg_tag" normal_color="bg_tag" hovered_color="bg_tag_hover"
+                              pressed_color="bg_tag_hover"/>
+    <Class name="tag_input_tag_text" width="auto" height="auto" margin="8,0,2,0"
+                                   font="system_regular_12" text_color="text_default" text_align="vcenter"/>
+    <Class name="tag_input_tag_close" width="16" height="16" margin="3,0,3,0" valign="center" no_focus="true"
+                                      border_round="8,8" cursor_type="hand"
+                                      normal_image="file='${PATH_BUTTON}/btn_close.svg' width='12' height='12' valign='center' halign='center' svg_replace_colors='#333333|border_svg_image'"
+                                      hovered_color="bg_tag_close_hover"
+                                      hovered_image="file='${PATH_BUTTON}/btn_close.svg' width='12' height='12' valign='center' halign='center' svg_replace_colors='#333333|white'"
+                                      pressed_color="bg_tag_close_pressed"
+                                      pressed_image="file='${PATH_BUTTON}/btn_close.svg' width='12' height='12' valign='center' halign='center' svg_replace_colors='#333333|white'"/>
+    <Class name="tag_input_edit" class="richedit_base" width="stretch" height="24" min_width="80" margin="2,0,2,0"
+                                   valign="center" prompt_mode="true" prompt_color="text_richedit_prompt"/>
+
+    <!-- 自动完成输入框控件（AutoComplete） -->
+    <Class name="auto_complete" width="260" height="32" padding="3,3,3,3"
+                               bkcolor="bg_richedit" border_size="1" border_round="4,4"
+                               border_color="border_richedit_normal"
+                               hovered_border_color="border_richedit_hovered"/>
+    <Class name="auto_complete_edit" class="richedit_base" width="stretch" height="stretch"
+                                    text_padding="4,0,4,0" prompt_mode="true" prompt_color="text_richedit_prompt"/>
+    <Class name="auto_complete_flyout" width="260" height="auto" bkcolor="bg_window_card"
+                                      border_size="1" border_color="border_window" border_round="6,6"
+                                      padding="1,1,1,1"/>
+    <Class name="auto_complete_list" bkcolor="bg_window_card" vscrollbar="true" paint_selected_colors="true"/>
+    <Class name="auto_complete_item" text_padding="10,0,10,0" fade_hovered="false"
+                                    hovered_color="bg_list_item_hovered"
+                                    pressed_color="bg_list_item_pressed"
+                                    disabled_color="bg_list_item_disabled"
+                                    selected_normal_color="bg_list_item_selected"/>
+
+    <!-- ListCtrl 单元格下拉候选浮层（kEditCombo 编辑器使用） -->
+    <Class name="list_ctrl_combo_flyout" width="260" height="auto" bkcolor="bg_window_card"
+                                          border_size="1" border_color="border_window" border_round="6,6"
+                                          padding="1,1,1,1"/>
+    <Class name="list_ctrl_combo_list" bkcolor="bg_window_card" vscrollbar="true" paint_selected_colors="true"/>
+    <Class name="list_ctrl_combo_item" text_padding="10,0,10,0" fade_hovered="false"
+                                        hovered_color="bg_list_item_hovered"
+                                        pressed_color="bg_list_item_pressed"
+                                        disabled_color="bg_list_item_disabled"
+                                        selected_normal_color="bg_list_item_selected"/>
     
     <!-- 富文本基本属性 -->
     <Class name="rich_text" text_color="text_default" 
@@ -578,7 +711,8 @@
                             list_view_item_class="list_ctrl_list_view_item"
                             list_view_item_image_class="list_ctrl_list_view_item_image"
                             list_view_item_label_class="list_ctrl_list_view_item_label"
-                            list_ctrl_richedit_class="list_ctrl_richedit"/>
+                            list_ctrl_richedit_class="list_ctrl_richedit"
+                            list_ctrl_datetime_class="list_ctrl_datetime"/>
         
     <!-- ListCtrl表头 -->
     <Class name="list_ctrl_header" icon_spacing="4" bkcolor="bg_list_ctrl_header" width="100%"/>
@@ -615,7 +749,8 @@
                                                   pressed_color="bg_list_ctrl_item_pressed" 
                                                   disabled_color="bg_list_ctrl_item_disabled" 
                                                   selected_normal_color="bg_list_ctrl_item_selected"/>
-    <Class name="list_ctrl_sub_item" icon_spacing="2" text_align="vcenter,left" text_padding="2,0,2,0" auto_tooltip="true" single_line="true"/>    
+    <Class name="list_ctrl_sub_item" icon_spacing="2" text_align="vcenter,left" text_padding="2,0,2,0" auto_tooltip="true" single_line="true"
+                                            progress_color="bg_progress" progress_bkcolor="bg_progress_track" progress_text_pos="center"/>    
     
     <!-- ListCtrl图标视图 -->
     <Class name="list_ctrl_icon_view" bkcolor="bg_list_ctrl_view" 
@@ -657,8 +792,14 @@
     <!-- ListCtrl编辑框 -->
     <Class name="list_ctrl_richedit" class="simple_border" 
                                      text_align="left,vcenter" min_height="28" multi_line="false" word_wrap="true" auto_hscroll="true" 
-                                     want_return="true" want_tab="false" rich_text="false" 
+                                     want_return="false" want_tab="false" rich_text="false" 
                                      text_padding="2,2,2,2" padding="1,1,1,1" border_size="1" 
+                                     bkcolor="bg_richedit"/>
+    
+    <!-- ListCtrl日期编辑框（DateTime控件） -->
+    <Class name="list_ctrl_datetime" class="simple_border"
+                                     text_align="left,vcenter" height="28" border_size="1"
+                                     text_padding="2,0,2,0" padding="1,1,1,1"
                                      bkcolor="bg_richedit"/>
     
     <!-- TabCtrl控件 -->
@@ -673,7 +814,8 @@
                                 icon_class="tab_ctrl_item_icon"
                                 title_class="tab_ctrl_item_title"
                                 close_button_class="tab_ctrl_item_close"
-                                line_class="tab_ctrl_item_line"/>
+                                line_class="tab_ctrl_item_line"
+                                badge_class="tab_ctrl_item_badge"/>
     <Class name="tab_ctrl_item_icon" width="${SIZE_ICON_SMALL}" height="${SIZE_ICON_SMALL}" valign="center" mouse_enabled="false"/>
     <Class name="tab_ctrl_item_title" width="stretch" height="24" margin="2,0,12,0" valign="center" 
                                       font="system_regular_12" auto_tooltip="true" mouse_enabled="false"/>
@@ -683,9 +825,12 @@
                                       hovered_color="bg_tab_ctrl_item_close_hovered" 
                                       pressed_color="bg_tab_ctrl_item_close_pressed"
                                       border_round="4,4" alpha="192" fade_alpha="true"/>
-    <Class name="tab_ctrl_item_line" bkcolor="border_tab_ctrl_item" width="1" height="22" float="true" 
+    <Class name="tab_ctrl_item_line" bkcolor="border_tab_ctrl_item" width="1" height="22" float="true"
                                      halign="right" valign="center" mouse_enabled="false"/>
-    
+    <Class name="tab_ctrl_item_badge" height="16" valign="center" margin="0,0,8,0" font="system_regular_12"
+                                      normal_text_color="text_badge" text_padding="4,0,4,0" text_align="center" mouse_enabled="false"/>
+    <Class name="tab_ctrl_item_badge_dot" width="8" height="8" dot="true" valign="center" margin="0,0,10,0" mouse_enabled="false"/>
+
     <!-- AddressBar控件 -->
     <Class name="address_bar" width="stretch" height="36" border_size="1" border_color="border_address_bar" disabled_border_color="border_address_bar_disabled" border_round="4,4" 
                               bkcolor="bg_address_bar" disabled_color="bg_address_bar_disabled"
@@ -786,5 +931,43 @@
                              button2_hovered_image="file='${PATH_SCROLLBAR_STANDARD}/hscrollbar/btn_right_hovered.svg' height='${SIZE_SCROLLBAR_HEIGHT}' svg_replace_colors='rgba(200,200,200,0.5)|bg_scrollbar_btn_hovered;rgba(30,120,200,0.9)|bg_scrollbar_btn_arrow_hovered'"
                              button2_pressed_image="file='${PATH_SCROLLBAR_STANDARD}/hscrollbar/btn_right_pressed.svg' height='${SIZE_SCROLLBAR_HEIGHT}' svg_replace_colors='rgba(180,180,180,0.7)|bg_scrollbar_btn_pressed;rgba(80,80,80,1.0)|bg_scrollbar_btn_arrow_pressed'"
                              button2_disabled_image="file='${PATH_SCROLLBAR_STANDARD}/hscrollbar/btn_right_disabled.svg' height='${SIZE_SCROLLBAR_HEIGHT}' svg_replace_colors='rgba(220,220,220,0.1)|bg_scrollbar_btn_disabled;rgba(120,120,120,0.4)|bg_scrollbar_btn_arrow_disabled'" />
-    
+
+    <!-- Flyout浮层容器：浮层窗口的内容根容器（窗口级阴影由XML根节点 shadow_attached="true" 配置） -->
+    <Class name="flyout" width="240" height="auto" bkcolor="bg_window_card"
+                            border_size="1" border_color="border_window" border_round="8,8"
+                            padding="12,12,12,12"/>
+    <!-- Flyout标题文本 -->
+    <Class name="flyout_title" width="stretch" height="auto" font="system_bold_14"
+                                   normal_text_color="text_default" text_align="hleft,vcenter"
+                                   mouse_enabled="false" tab_stop="false"/>
+    <!-- Flyout辅助说明文本 -->
+    <Class name="flyout_desc" width="stretch" height="auto" font="system_regular_12"
+                                  normal_text_color="text_muted" multi_line="true"
+                                  text_align="hleft,vcenter" mouse_enabled="false" tab_stop="false"/>
+
+    <!-- Calendar日历面板：整体容器 -->
+    <Class name="calendar" width="280" height="240" bkcolor="bg_window_card"/>
+    <!-- Calendar星期标题 -->
+    <Class name="calendar_weekday" width="stretch" height="24" font="system_regular_12"
+                                  normal_text_color="text_muted" text_align="hcenter,vcenter"
+                                  mouse_enabled="false" tab_stop="false"/>
+    <!-- Calendar日期格子（当月） -->
+    <Class name="calendar_day" width="stretch" height="stretch" font="system_regular_14"
+                                  normal_text_color="text_default" text_align="hcenter,vcenter"/>
+    <!-- Calendar日期格子（上月/下月，灰色） -->
+    <Class name="calendar_day_muted" width="stretch" height="stretch" font="system_regular_14"
+                                  normal_text_color="text_muted" text_align="hcenter,vcenter"/>
+    <!-- Calendar日期格子（今天，主题色边框） -->
+    <Class name="calendar_day_today" width="stretch" height="stretch" font="system_regular_14"
+                                  normal_text_color="color_accent" text_align="hcenter,vcenter"/>
+    <!-- Calendar日期格子（选中，主题色背景） -->
+    <Class name="calendar_day_selected" width="stretch" height="stretch" font="system_regular_14"
+                                  normal_text_color="text_primary_btn_normal" text_align="hcenter,vcenter"/>
+    <!-- Calendar日期格子（范围中间，浅色背景） -->
+    <Class name="calendar_day_range" width="stretch" height="stretch" font="system_regular_14"
+                                  normal_text_color="text_default" text_align="hcenter,vcenter"/>
+    <!-- Calendar日期格子（悬停） -->
+    <Class name="calendar_day_hovered" width="stretch" height="stretch" font="system_regular_14"
+                                  normal_text_color="text_default" text_align="hcenter,vcenter"/>
+
 </Global>

@@ -16,13 +16,30 @@
 #include "duilib/Control/FilterCombo.h"
 #include "duilib/Control/CheckCombo.h"
 #include "duilib/Control/Slider.h"
+#include "duilib/Control/RangeSlider.h"
 #include "duilib/Control/Progress.h"
 #include "duilib/Control/CircleProgress.h"
 #include "duilib/Control/RichEdit.h"
+#include "duilib/Control/SpinBox.h"
+#include "duilib/Control/SearchBox.h"
+#include "duilib/Control/Switch.h"
+#include "duilib/Control/Badge.h"
+#include "duilib/Control/TagInput.h"
+#include "duilib/Control/AutoComplete.h"
+#include "duilib/Control/Mask.h"
 #include "duilib/Control/RichText.h"
 #include "duilib/Control/DateTime.h"
+#include "duilib/Control/Calendar.h"
+#include "duilib/Control/CalendarFlyout.h"
+#include "duilib/Control/NavigationView.h"
+#include "duilib/Control/Chart.h"
+#include "duilib/Control/Marquee.h"
+#include "duilib/Control/Timeline.h"
+#include "duilib/Control/Stepper.h"
 #include "duilib/Control/Split.h"
 #include "duilib/Control/GroupBox.h"
+#include "duilib/Control/StatusBar.h"
+#include "duilib/Control/ToolBar.h"
 
 #include "duilib/Control/ColorControl.h"
 #include "duilib/Control/ColorSlider.h"
@@ -53,6 +70,7 @@
 #include "duilib/Box/ScrollBox.h"
 #include "duilib/Box/ListBox.h"
 #include "duilib/Box/VirtualListBox.h"
+#include "duilib/Box/Panel.h"
 
 #include "duilib/Utils/StringUtil.h"
 #include "duilib/Utils/StringConvert.h"
@@ -143,6 +161,7 @@ Control* WindowBuilder::CreateControlByClass(const DString& strControlClass, Win
         {DUI_CTR_FILTER_COMBO, [](Window* pWindow) { return new FilterCombo(pWindow); }},
         {DUI_CTR_CHECK_COMBO, [](Window* pWindow) { return new CheckCombo(pWindow); }},
         {DUI_CTR_SLIDER, [](Window* pWindow) { return new Slider(pWindow); }},
+        {DUI_CTR_RANGE_SLIDER, [](Window* pWindow) { return new RangeSlider(pWindow); }},
         {DUI_CTR_PROGRESS, [](Window* pWindow) { return new Progress(pWindow); }},
         {DUI_CTR_CIRCLEPROGRESS, [](Window* pWindow) { return new CircleProgress(pWindow); }},
         {DUI_CTR_RICHTEXT, [](Window* pWindow) { return new RichText(pWindow); }},
@@ -151,7 +170,21 @@ Control* WindowBuilder::CreateControlByClass(const DString& strControlClass, Win
         {DUI_CTR_RICHTEXT_VBOX, [](Window* pWindow) { return new RichTextVBox(pWindow); }},
         {DUI_CTR_RICHEDIT, [](Window* pWindow) { return new RichEdit(pWindow); }},
         {DUI_CTR_RICHEDIT2, [](Window* pWindow) { return new RichEdit2(pWindow); }},
+        {DUI_CTR_SPIN_BOX, [](Window* pWindow) { return new SpinBox(pWindow); }},
+        {DUI_CTR_SEARCH_BOX, [](Window* pWindow) { return new SearchBox(pWindow); }},
+        {DUI_CTR_SWITCH, [](Window* pWindow) { return new Switch(pWindow); }},
+        {DUI_CTR_BADGE, [](Window* pWindow) { return new Badge(pWindow); }},
+        {DUI_CTR_TAG_INPUT, [](Window* pWindow) { return new TagInput(pWindow); }},
+        {DUI_CTR_AUTO_COMPLETE, [](Window* pWindow) { return new AutoComplete(pWindow); }},
+        {DUI_CTR_MASK, [](Window* pWindow) { return new Mask(pWindow); }},
         {DUI_CTR_DATETIME, [](Window* pWindow) { return new DateTime(pWindow); }},
+        {DUI_CTR_CALENDAR, [](Window* pWindow) { return new Calendar(pWindow); }},
+        {DUI_CTR_NAVIGATIONVIEW, [](Window* pWindow) { return new NavigationView(pWindow); }},
+        {DUI_CTR_NAVIGATION_VIEW_ITEM, [](Window* pWindow) { return new NavigationViewItem(pWindow); }},
+        {DUI_CTR_CHART, [](Window* pWindow) { return new Chart(pWindow); }},
+        {DUI_CTR_MARQUEE, [](Window* pWindow) { return new Marquee(pWindow); }},
+        {DUI_CTR_TIMELINE, [](Window* pWindow) { return new Timeline(pWindow); }},
+        {DUI_CTR_STEPPER, [](Window* pWindow) { return new Stepper(pWindow); }},
         {DUI_CTR_COLOR_CONTROL, [](Window* pWindow) { return new ColorControl(pWindow); }},
         {DUI_CTR_COLOR_SLIDER, [](Window* pWindow) { return new ColorSlider(pWindow); }},
         {DUI_CTR_COLOR_PICKER_REGULAR, [](Window* pWindow) { return new ColorPickerRegular(pWindow); }},
@@ -168,6 +201,8 @@ Control* WindowBuilder::CreateControlByClass(const DString& strControlClass, Win
         {DUI_CTR_BITMAP_CONTROL, [](Window* pWindow) { return new BitmapControl(pWindow); }},
         {DUI_CTR_ADDRESS_BAR, [](Window* pWindow) { return new AddressBar(pWindow); }},
         {DUI_CTR_MENU_BAR, [](Window* pWindow) { return new MenuBar(pWindow); }},
+        {DUI_CTR_STATUS_BAR, [](Window* pWindow) { return new StatusBar(pWindow); }},
+        {DUI_CTR_TOOL_BAR, [](Window* pWindow) { return new ToolBar(pWindow); }},
         {DUI_CTR_CHILD_WINDOW, [](Window* pWindow) { return new ChildWindow(pWindow); }},
 
         {DUI_CTR_SPLIT, [](Window* pWindow) { return new Split(pWindow); }},
@@ -175,6 +210,10 @@ Control* WindowBuilder::CreateControlByClass(const DString& strControlClass, Win
         {DUI_CTR_GROUP_BOX, [](Window* pWindow) { return new GroupBox(pWindow); }},
         {DUI_CTR_GROUP_HBOX, [](Window* pWindow) { return new GroupHBox(pWindow); }},
         {DUI_CTR_GROUP_VBOX, [](Window* pWindow) { return new GroupVBox(pWindow); }},
+
+        {DUI_CTR_PANEL, [](Window* pWindow) { return new Panel(pWindow); }},
+        {DUI_CTR_PANEL_HBOX, [](Window* pWindow) { return new PanelHBox(pWindow); }},
+        {DUI_CTR_PANEL_VBOX, [](Window* pWindow) { return new PanelVBox(pWindow); }},
 
         {DUI_CTR_BOX_DRAGABLE, [](Window* pWindow) { return new BoxDragable(pWindow); }},
         {DUI_CTR_HBOX_DRAGABLE, [](Window* pWindow) { return new HBoxDragable(pWindow); }},
@@ -346,6 +385,10 @@ Control* WindowBuilder::CreateControls(Window* pWindow, CreateControlCallback pC
         DString strClass = node.name();
         if (IsIgnoreNodeName(strClass)) {
             //忽略这几个属性
+        }
+        else if ((strClass == _T("Include")) && (StringUtil::StringCompare(root.name(), _T("Global")) == 0)) {
+            //全局资源中的Include节点，已在ParseGlobalAttributes中处理，这里跳过
+            continue;
         }
         else {
             if (pUserDefinedBox == nullptr) {
@@ -1085,6 +1128,57 @@ void WindowBuilder::ParseGlobalAttributes(const pugi::xml_node& root)
         }
         else if (strClass == _T("Theme")) {
             //跳过(主题名称，在其他地方解析)
+        }
+        else if (strClass == _T("Include")) {
+            //Include节点：引用同目录的XML文件，注册其中的全局资源
+            ParseGlobalIncludeXmlNode(node);
+        }
+    }
+}
+
+void WindowBuilder::ParseGlobalIncludeXmlNode(const pugi::xml_node& node)
+{
+    if (node.attributes().empty()) {
+        return;
+    }
+    pugi::xml_attribute sourceAttr = node.attribute(_T("src"));
+    DString sourceValue = sourceAttr.as_string();
+    if (sourceValue.empty()) {
+        sourceAttr = node.attribute(_T("source"));
+        sourceValue = sourceAttr.as_string();
+    }
+    if (sourceValue.empty()) {
+        return;
+    }
+
+    //统一路径分隔符
+    StringUtil::ReplaceAll(_T("/"), m_xmlFilePath.GetPathSeparatorStr(), sourceValue);
+    StringUtil::ReplaceAll(_T("\\"), m_xmlFilePath.GetPathSeparatorStr(), sourceValue);
+
+    FilePath sourceXmlFilePath(sourceValue);
+    if (!m_xmlFilePath.IsEmpty()) {
+        //优先尝试在原XML文件相同目录加载被引用的XML文件
+        DString xmlFilePath = m_xmlFilePath.ToString();
+        size_t pos = xmlFilePath.find_last_of(_T("\\/"));
+        if (pos != DString::npos) {
+            FilePath srcFilePath(xmlFilePath.substr(0, pos));
+            srcFilePath.JoinFilePath(FilePath(sourceValue));
+            if (GlobalManager::Instance().Theme().IsResFileExists(srcFilePath, FilePath())) {
+                sourceXmlFilePath = srcFilePath;
+            }
+        }
+    }
+
+    //使用独立的WindowBuilder解析被引用的XML文件，避免覆盖当前正在遍历的文档
+    WindowBuilder builder;
+    if (builder.ParseXmlFile(sourceXmlFilePath, FilePath())) {
+        pugi::xml_node root = builder.m_xml->root().first_child();
+        if (!root.empty() && (StringUtil::StringCompare(root.name(), _T("Global")) == 0)) {
+            //被引用的文件根节点为"Global"，递归解析其中的全局资源声明
+            builder.ParseGlobalAttributes(root);
+        }
+        else {
+            ASSERT(!"ParseGlobalIncludeXmlNode: the included file root node must be 'Global'");
         }
     }
 }

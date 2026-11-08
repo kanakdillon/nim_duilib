@@ -46,7 +46,8 @@ msvc_build.bat
   `<仓库根>\..\skia\out\llvm.<arch>.release` 是否存在，不存在则提示先跑第 1 步。
 - 依次 cmake 构建：第三方库 `zlib,libpng,cximage,libwebp,libcef\libcef_win` → `duilib` →
   `examples` 下的各示例程序。
-- 默认 Release；架构取 VS 目标架构（缺省 x64），并据此设置 `DUILIB_SKIA_LIB_SUBPATH=llvm.<arch>.release`。
+- 默认 Release（Debug 时子目录为 `llvm.<arch>.debug`）；架构取 VS 目标架构（缺省 x64），并据此设置
+  `DUILIB_SKIA_LIB_SUBPATH=llvm.<arch>.<构建类型>`。
 
 ### 2.2 非 Windows：一步
 
@@ -123,8 +124,10 @@ python .workbuddy/skills/nim-duilib/scripts/verify_docs.py --repo <仓库根>
 python .workbuddy/skills/nim-duilib/scripts/verify_docs.py --repo <仓库根> --extra <自己生成的文档.md>
 ```
 
-确实需要引用源码中不存在的名字时，在文档里加一行 HTML 注释走白名单：
-`<!-- verify:allow-missing 名字1 名字2 -->`。
+确实需要引用源码中不存在的名字时（例如讲解"已废弃的旧名"），登记到脚本旁的豁免名单
+`scripts/verify_allowlist.txt`，每行格式为 `<glob> :: 名字1 名字2 ...`，`glob` 留空表示对所有文件生效。
+
+**不要把豁免写成文档里的 HTML 注释** —— 注释会破坏 markdown 正文结构。
 
 ---
 
@@ -141,9 +144,10 @@ python .workbuddy/skills/nim-duilib/scripts/verify_docs.py --repo <仓库根> --
 4. 把新示例加入构建：`examples.sln` 需**手工**添加工程；若希望 `build\msvc_build.bat` 一并编译，
    把工程名加进脚本里的 `DUILIB_PROGRAMS` 列表。
 
-`CMakeLists.txt` 中 `DUILIB_SKIA_LIB_SUBPATH` 的默认设置必须写在
-`include(duilib_common.cmake)` **之前**——该脚本用 `option()` 声明此变量，include 之后它必然已定义，
-再判断"是否未定义"永远为假。模板已按此规则写好，照抄即可。
+`CMakeLists.txt` **无需**再给 `DUILIB_SKIA_LIB_SUBPATH` 设默认值：该默认值已由
+`duilib_common.cmake` 内部计算（Windows 为 `llvm.<CPU_ARCH>.<DUILIB_BUILD_TYPE>`，其他平台为空、
+走 `${编译器}.${架构}.${构建类型}` 自动拼接），模板照抄即可。需要覆盖时用
+`-DDUILIB_SKIA_LIB_SUBPATH=...` 传入（外部值优先）。
 
 ### 4.2 关键代码模式
 
@@ -256,13 +260,18 @@ cmake --build build/build_temp/hello_button --config Release
 
 ---
 
-## 8. 与 CLAUDE.md / `.claude` 的关系
+## 8. 与 CLAUDE.md / TRAE.md 的关系
 
 | 目录 | 使用者 | 形态 |
 |------|--------|------|
 | `CLAUDE.md` + `.claude/docs` + `.claude/skills/*.md` | Claude Code | 扁平 md，靠注册脚本部署 |
 | `WORKBUDDY.md`（本文）+ `.workbuddy/skills/nim-duilib/` | WorkBuddy | `SKILL.md` + `references/`，语义触发、三级加载 |
+| `TRAE.md` + `.trae/skills/nim-duilib/` | TRAE | `SKILL.md` + `references/`，语义触发、frontmatter 路由 |
 
-两边描述的是同一套框架事实，**修一边就要同步另一边**，否则会重新出现文档与代码不一致
+三份描述的是同一套框架事实，**修一份就要同步另外两份**，否则会重新出现文档与代码不一致
 （本项目历史上出现过 26 处）。`C++20`、`WindowImplBase` 位于 `duilib/Utils/WinImplBase.h`、
 `OnInit()` 返回 `bool`、`pSender` 为 private 等都属于易错点，改动时重点复核。
+
+三份 Skill 的 `references/` 与 `assets/templates/` 内容同源，仅 `SKILL.md` 的 frontmatter
+因平台规则不同而各异：WorkBuddy 允许 `agent_created` 与含 `<>` 的长描述，TRAE 则禁止 `<>` 与
+`: `（冒号空格）且 description 需 < 200 字符。

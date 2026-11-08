@@ -1,4 +1,4 @@
-﻿<?xml version="1.0" encoding="UTF-8"?>
+<?xml version="1.0" encoding="UTF-8"?>
 <Window size="1000,760" snap_layout_menu="true" sys_menu="true" sys_menu_rect="0,0,36,36" caption="0,0,0,36" 
         shadow_type="default" size_box="2,2,2,2" min_size="400,320" icon="public/caption/logo.ico">
     <!-- 整个布局放在一个VBox容器中 -->
@@ -33,28 +33,37 @@
         <!-- 工作区域，除了标题栏外的内容都放在这个大的VBox区域 -->
         <VBox padding="10,10,10,10">
             <!-- 第一排 -->
-            <HBox height="170" padding="0,0,0,10">
+            <HBox height="288" padding="0,0,0,10">
                 <!-- Buttons -->
                 <VBox width="120">
                     <Button class="btn_global_blue_80x30" text="blue" tooltip_text="ui::Buttons"/>
                     <Button class="btn_global_white_80x30" text="white"/>
                     <Button class="btn_global_red_80x30" text="red"/>
-                    <Button class="btn_global" text_id="STRID_CONTROLS_CONTROL_TEST" name="test_btn" width="80" height="30" border_round="3,3" margin="0,2,0,0"/>
-                    <Button class="btn_global" name="animation_btn" text_id="STRID_CONTROLS_ANIMATION_TEST" width="80" height="30" border_round="3,3" margin="0,2,0,0"/>
-                </VBox>
-                <!-- Checkbox -->
-                <VBox width="120">
-                    <CheckBox class="checkbox_1" font="system_regular_14" text_id="STRID_CONTROLS_CHECKBOX_1" margin="0,3,0,3" selected="true" tooltip_text="ui::Checkbox"/>
-                    <CheckBox class="checkbox_1" text_id="STRID_CONTROLS_CHECKBOX_2" margin="0,3,0,3"/>
-                    <CheckBox class="checkbox_2"  text_id="STRID_CONTROLS_CHECKBOX_3" margin="0,3,0,3"/>
                     <Button class="btn_global" name="domodal2" text_id="STRID_CONTROLS_MODAL_DIALOG" width="110" height="30" border_round="3,3" margin="0,12,0,0"/>
                     <Button class="btn_global" name="show_color_picker" text_id="STRID_CONTROLS_COLOR_PICKER_MODAL" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
                 </VBox>
-                <!-- Option -->
-                <VBox width="120" margin="20,0,0,0">
+                <VBox width="124">
+                    <Button class="btn_global" text_id="STRID_CONTROLS_CONTROL_TEST" name="test_btn" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="animation_btn" text_id="STRID_CONTROLS_ANIMATION_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="navigation_btn" text_id="STRID_CONTROLS_NAVIGATION_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="chart_btn" text_id="STRID_CONTROLS_CHART_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="marquee_btn" text_id="STRID_CONTROLS_MARQUEE_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="timeline_btn" text_id="STRID_CONTROLS_TIMELINE_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="statusbar_btn" text_id="STRID_CONTROLS_STATUSBAR_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                    <Button class="btn_global" name="toolbar_btn" text_id="STRID_CONTROLS_TOOLBAR_TEST" width="110" height="30" border_round="3,3" margin="0,2,0,0"/>
+                </VBox>
+                <!-- Checkbox / Option -->
+                <VBox width="100">
+                    <CheckBox class="checkbox_1" font="system_regular_14" text_id="STRID_CONTROLS_CHECKBOX_1" margin="0,3,0,3" selected="true" tooltip_text="ui::Checkbox"/>
+                    <CheckBox class="checkbox_1" text_id="STRID_CONTROLS_CHECKBOX_2" margin="0,3,0,3"/>
+                    <CheckBox class="checkbox_2"  text_id="STRID_CONTROLS_CHECKBOX_3" margin="0,3,0,3"/>
+                    
                     <Option class="option_1" group="option_group" text_id="STRID_CONTROLS_OPTION_1" margin="0,3,0,3" selected="true" tooltip_text="ui::Option"/>
                     <Option class="option_1" group="option_group" text_id="STRID_CONTROLS_OPTION_2" margin="0,3,0,3"/>
                     <Option class="option_1" group="option_group" text_id="STRID_CONTROLS_OPTION_3" margin="0,3,0,3"/>
+                </VBox>
+                <!-- CheckBox / Switch -->
+                <VBox width="120" margin="2,0,0,0">                    
                     <HBox height="36">
                         <Label text_id="STRID_CONTROLS_SWITCH_1" height="36" valign="center"/>
                         <CheckBox class="checkbox_toggle_1" name="checkbox_tray_icon" selected="false" margin="4,3,0,3"/>
@@ -63,7 +72,32 @@
                         <Label text_id="STRID_CONTROLS_SWITCH_2" height="36" valign="center"/>
                         <CheckBox class="checkbox_toggle_2" margin="4,3,0,3"/>
                     </HBox>
-                </VBox>
+                    <HBox height="36">
+                    <Label text_id="STRID_CONTROLS_SWITCH_3" height="36" valign="center"/>
+                    <Switch class="switch" margin="4,3,0,3"/>
+                </HBox>
+            </VBox>
+            <!-- Badge -->
+            <VBox width="100" margin="2,0,0,0">
+                <HBox height="36">
+                    <Label text_id="STRID_CONTROLS_BADGE" height="36" valign="center"/>
+                    <Badge class="badge" count="5" margin="8,0,0,0" tooltip_text="ui::Badge (count=5)"/>
+                </HBox>
+                <HBox height="36">
+                    <Label text_id="STRID_CONTROLS_BADGE" height="36" valign="center"/>
+                    <Badge class="badge" count="120" margin="8,0,0,0" tooltip_text="ui::Badge (count=120, max=99)"/>
+                </HBox>
+                <HBox height="36">
+                    <Label text_id="STRID_CONTROLS_BADGE" height="36" valign="center"/>
+                    <Badge class="badge_dot" margin="8,0,0,0" tooltip_text="ui::Badge (dot)"/>
+                </HBox>
+                <HBox height="36">
+                    <Box width="90" height="30" valign="center">
+                        <Button class="btn_global" text_id="STRID_CONTROLS_BADGE_MSG" width="80" height="30" border_round="3,3"/>
+                        <Badge class="badge" count="6" float="true" margin="64,0,0,0" tooltip_text="ui::Badge (float)"/>
+                    </Box>
+                </HBox>
+            </VBox>
                 <!-- List -->
                 <VListBox class="list" name="list" padding="5,3,5,3" tooltip_text="ui::VListBox">
                     <ListBoxItem class="list_item" height="20" text="ui::VListBox::ListBoxItem"/>
@@ -126,13 +160,13 @@
                         <VBox margin="4,8,0,0">
                             <HBox child_margin="4" width="300">
                                 <Label text_id="STRID_CONTROLS_DATE" height="24" text_align="vcenter" hovered_text_color="red" pressed_text_color="blue"/>
-                                <DateTime width="100%" height="24" text="2022-02-01"/>
-                                <DateTime width="120" height="24" edit_format="date_up_down" />
+                                <DateTime width="auto" height="24" text="2022-02-01"/>
+                                <DateTime width="auto" height="24" edit_format="date_up_down" />
                             </HBox>
                             <HBox child_margin="4" width="320">
                                 <Label text_id="STRID_CONTROLS_TIME" height="24" text_align="vcenter" />
-                                <DateTime width="100%" height="24" edit_format="date_time_up_down" />
-                                <DateTime width="72" height="24" edit_format="minute_up_down" />
+                                <DateTime width="auto" height="24" edit_format="date_time_up_down" />
+                                <DateTime width="auto" height="24" edit_format="minute_up_down" />
                             </HBox>
                         </VBox>
                     </HBox>

@@ -1,3 +1,5 @@
+简体中文 | [English](WindowShadow.en.md)
+
 # 窗口阴影使用指南
 
 本文从用户使用角度介绍 duilib 中窗口阴影（Window Shadow）的功能，包括 XML 配置、C++ 代码接口、可用的阴影类型以及跨平台兼容性说明等，供开发者参考。

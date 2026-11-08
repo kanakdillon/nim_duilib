@@ -22,14 +22,27 @@ public:
     virtual void OnInitWindow() override;
 
 private:
-    /** 定时器函数
+    /** 显示进度条控件测试窗口（独立演示窗口）
     */
-    void OnTimer();
+    void ShowProgressWindow();
 
-private:
-    /** 进度值
+    /** 显示标签栏控件测试窗口（垂直标签 / 固定标签 / 溢出滚动）
     */
-    double m_nProgressValue;
+    void ShowTabCtrlWindow();
+
+    /** 显示 RangeSlider 双滑块范围控件演示窗口
+    */
+    void ShowRangeSliderWindow();
+
+    /** 显示 Stepper 向导步骤条演示窗口
+    */
+    void ShowStepperWindow();
+
+    /** 显示 Flyout 浮层演示
+    * @param [in] pAnchor 锚点按钮（事件发送者）
+    * @param [in] placement 期望弹出方位
+    */
+    void ShowFlyoutDemo(ui::Control* pAnchor, ui::Flyout::Placement placement);
 };
 
 #endif //EXAMPLES_TEST_FORM_H_

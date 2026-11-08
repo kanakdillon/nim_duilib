@@ -326,19 +326,19 @@ public:
 
     /** 设置允许的最大数字(仅当IsNumberOnly()为true的时候有效)
     */
-    void SetMaxNumber(int32_t maxNumber);
+    void SetMaxNumber(int64_t maxNumber);
 
     /** 获取允许的最大数字
     */
-    int32_t GetMaxNumber() const;
+    int64_t GetMaxNumber() const;
 
     /** 设置允许的最小数字(仅当IsNumberOnly()为true的时候有效)
     */
-    void SetMinNumber(int32_t minNumber);
+    void SetMinNumber(int64_t minNumber);
 
     /** 获取允许的最小数字
     */
-    int32_t GetMinNumber() const;
+    int64_t GetMinNumber() const;
 
     /** 获取数字的格式（64位有符号整型的格式, 比如"%I64d"等）
     */
@@ -409,7 +409,7 @@ public:
     * @param [in] nMin 表示设置数字的最小值
     * @param [in] nMax 表示设置数字的最大值，如果 nMin和nMax同时为0, 表示不设置数字的最小值和最大值
     */
-    bool SetEnableSpin(bool bEnable, const DString& spinClass, int32_t nMin = 0, int32_t nMax = 0);
+    bool SetEnableSpin(bool bEnable, const DString& spinClass, int64_t nMin = 0, int64_t nMax = 0);
 
     /** 设置是否允许拖放功能
     */
@@ -994,6 +994,16 @@ private:
     */
     void StopAutoAdjustTextNumber();
 
+public:
+    /** 设置Spin按钮（及数字模式下方向键）每次调整的步长
+    * @param [in] nStep 步长值，必须大于0，默认值为1
+    */
+    void SetSpinStep(int32_t nStep);
+
+    /** 获取Spin按钮每次调整的步长
+    */
+    int32_t GetSpinStep() const;
+
 private:
     /** 设置清除按钮功能的Class名称
     */
@@ -1278,11 +1288,11 @@ private:
 
     /** 设置允许的最大数字(仅当IsNumberOnly()为true的时候有效)
     */
-    int32_t m_maxNumber;
+    int64_t m_maxNumber;
 
     /** 设置允许的最小数字(仅当IsNumberOnly()为true的时候有效)
     */
-    int32_t m_minNumber;
+    int64_t m_minNumber;
 
     /** 允许输入的字符列表
     */
@@ -1295,6 +1305,10 @@ private:
     /** Spin功能的容器
     */
     VBox* m_pSpinBox;
+
+    /** Spin按钮（及数字模式下方向键）每次调整的步长
+    */
+    int32_t m_nSpinStep;
 
     /** 自动调整文本数字值的定时器生命周期管理
     */

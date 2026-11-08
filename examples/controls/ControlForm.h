@@ -69,6 +69,30 @@ private:
     */
     void ShowAnimationWindow();
 
+    /** 显示 NavigationView 侧边栏导航演示窗口
+    */
+    void ShowNavigationWindow();
+
+    /** 显示 Chart 轻量图表演示窗口
+    */
+    void ShowChartWindow();
+
+    /** 显示 Marquee 文本跑马灯演示窗口
+    */
+    void ShowMarqueeWindow();
+
+    /** 显示 Timeline 垂直时间轴演示窗口
+    */
+    void ShowTimelineWindow();
+
+    /** 显示 StatusBar 状态栏演示窗口
+    */
+    void ShowStatusBarWindow();
+
+    /** 显示 ToolBar 工具条演示窗口
+    */
+    void ShowToolBarWindow();
+
 private:
     /** 快捷键消息（WM_HOTKEY）
     * @param [in] hotkeyId 热键的ID

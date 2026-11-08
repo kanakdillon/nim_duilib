@@ -3,6 +3,8 @@
 
 #include "duilib/Control/Label.h"
 #include "duilib/Image/Image.h"
+#include "duilib/Animation/AnimationPlayer.h"
+#include <functional>
 
 namespace ui
 {
@@ -12,6 +14,15 @@ namespace ui
 class DUILIB_API Progress : public LabelTemplate<Control>
 {
     typedef LabelTemplate<Control> BaseClass;
+public:
+    /** 进度文本格式化回调：自定义 show_percent 显示的文本
+    *   @param value     当前进度值（动画插值中的显示值）
+    *   @param minValue  进度最小值
+    *   @param maxValue  进度最大值
+    *   @return 要显示的文本（如 "5/10"、"3.2 GB"、"剩余 3 秒"）
+    */
+    typedef std::function<DString(double value, double minValue, double maxValue)> TextFormatCallback;
+
 public:
     explicit Progress(Window* pWindow);
     virtual ~Progress() override;
@@ -68,6 +79,13 @@ public:
      */
     void SetValue(double fValue);
 
+    /** 设置当前进度百分比（不触发 kEventValueChanged 事件）
+     * 用于程序内部同步数值的场景（例如一个事件源驱动多个控件同步显示），
+     * 避免值变化事件回调被再次触发，形成循环调用
+     * @param[in] fValue 要设置的百分比数值
+     */
+    void SetValueNoEvent(double fValue);
+
     /** 进度条前景图片是否缩放显示
      * @return 返回 true 为缩放显示，false 为不缩放显示
      */
@@ -101,7 +119,99 @@ public:
     /** 获取进度条位置
     * @return 返回进度条区域坐标（以GetRect()为整个区域的相对坐标，左上角为<0,0>）
     */
-    virtual UiRect GetProgressPos();
+    virtual UiRect GetProgressPos() const;
+
+    /** 获取当前显示值（值动画播放期间为插值中的中间值，其余时候等于 GetValue()）
+    * @return 返回当前用于绘制的进度值
+    */
+    double GetDisplayValue() const { return m_fDisplayValue; }
+
+    /** 监听进度值改变事件
+    * @param [in] callback 进度值改变后调用的回调函数（EventArgs::wParam 为新值、lParam 为旧值，均按整数截断）
+    * @param [in] callbackID 该回调函数对应的ID（用于删除回调函数）
+    */
+    void AttachValueChanged(const EventCallback& callback, EventCallbackID callbackID = 0) { AttachEvent(kEventValueChanged, callback, callbackID); }
+
+    /** 设置是否自动显示百分比文本（覆盖控件 text，进度变化时自动更新为"xx%"）
+    */
+    void SetShowPercent(bool bShowPercent);
+
+    /** 获取是否自动显示百分比文本
+    */
+    bool IsShowPercent() const { return m_bShowPercent; }
+
+    /** 设置是否启用值变化动画（默认关闭）
+    */
+    void SetAnimationEnabled(bool bEnabled);
+
+    /** 获取是否启用值变化动画
+    */
+    bool IsAnimationEnabled() const { return m_bAnimationEnabled; }
+
+    /** 设置值变化动画时长（毫秒，默认 300）
+    */
+    void SetAnimationDuration(int32_t nMs);
+
+    /** 获取值变化动画时长
+    */
+    int32_t GetAnimationDuration() const { return m_nAnimationDuration; }
+
+    /** 设置值变化动画的缓动曲线（默认 EaseOutQuad）
+    * @param [in] easing 缓动函数类型，取值见 enum EasingFunctionType
+    */
+    void SetAnimationEasing(EasingFunctionType easing);
+
+    /** 获取值变化动画的缓动曲线
+    */
+    EasingFunctionType GetAnimationEasing() const { return m_easingAnimation; }
+
+    /** 设置值变化动画的缓动曲线（字符串方式，字符串名称与 EasingFunctionType 枚举名完全一致）
+    * @param [in] strEasing 缓动函数名，如 "EaseOutQuad"、"EaseLinear"、"EaseOutElastic"；
+    *                       空字符串或无法识别时回退为默认的 EaseOutQuad
+    */
+    void SetAnimationEasingName(const DString& strEasing);
+
+    /** 获取值变化动画的缓动曲线名称（与 EasingFunctionType 枚举名一致）
+    */
+    const DString& GetAnimationEasingName() const { return m_strAnimationEasing; }
+
+    /** 设置纯色前景的圆角半径（像素，自动 DPI 缩放，默认 0 为直角）
+    */
+    void SetProgressRadius(int32_t nRadius);
+
+    /** 获取纯色前景的圆角半径
+    */
+    int32_t GetProgressRadius() const { return m_nProgressRadius; }
+
+    /** 立即把当前值钳位到新的 [min, max] 区间内（min/max 变化时自动调用）
+    */
+    void ClampCurrentValue();
+
+    /** 设置次级进度值（缓冲/buffer，通常比主进度略靠前，如视频已缓存位置）
+    * @param [in] fValue 次级进度值，小于等于 min 时不绘制；默认 -1 表示未设置
+    */
+    void SetBufferValue(double fValue);
+
+    /** 获取次级进度值
+    */
+    double GetBufferValue() const { return m_fBufferValue; }
+
+    /** 设置次级进度颜色（语义色名或颜色值，为空则使用前景色的半透明版）
+    */
+    void SetBufferColor(const DString& strColor);
+
+    /** 获取次级进度颜色
+    */
+    const DString& GetBufferColor() const { return m_strBufferColor; }
+
+    /** 设置进度文本格式化回调（show_percent 开启时生效，自定义显示文本）
+    * @param [in] callback 格式化回调，置空则恢复默认的"xx%"格式
+    */
+    void SetTextFormatCallback(const TextFormatCallback& callback);
+
+    /** 监听进度完成事件（进度值到达完成端点时触发：正向到达 max，倒数到达 min）
+    */
+    void AttachProgressCompleted(const EventCallback& callback, EventCallbackID callbackID = 0) { AttachEvent(kEventProgressCompleted, callback, callbackID); }
 
     /** 播放Marquee
      */
@@ -153,6 +263,30 @@ public:
     bool IsReverse() const;
 
 private:
+    /** 发送进度值改变事件
+    * @param newValue 新值
+    * @param oldValue 旧值
+    */
+    void SendValueChangedEvent(double newValue, double oldValue);
+
+    /** 更新百分比显示文本（show_percent 开启时）
+    */
+    void UpdatePercentText();
+
+    /** 启动值变化动画（从 fFrom 缓动到 fTo）
+    */
+    void StartValueAnimation(double fFrom, double fTo);
+
+    /** 根据进度值计算填充区域（含钳位与 reverse 处理，供 GetProgressPos 与 buffer 绘制复用）
+    * @param value 进度值
+    */
+    UiRect CalcProgressRect(double value) const;
+
+    /** 绘制纯色进度填充（含圆角，供主进度与 buffer 复用）
+    */
+    void DrawSolidProgressRect(IRender* pRender, const UiRect& rcProgressColor, UiColor color, uint8_t alpha);
+
+private:
     //进度条是水平或垂直: true为水平，false为垂直
     bool m_bHorizontal;
 
@@ -167,6 +301,15 @@ private:
 
     //当前进度值
     double m_fCurrentValue;
+
+    //次级进度值（缓冲/buffer），默认 -1 表示未设置
+    double m_fBufferValue;
+
+    //次级进度颜色（语义色名或颜色值）
+    DString m_strBufferColor;
+
+    //进度文本格式化回调
+    TextFormatCallback m_textFormatCallback;
 
     //进度条前景图片
     Image* m_pProgressImage;
@@ -183,6 +326,33 @@ private:
     int32_t m_nMarqueeStep;
     int32_t m_nMarqueeElapsed;
     int32_t m_nMarqueePos;
+
+    //值变化动画的显示值（动画插值中的中间值）
+    double m_fDisplayValue;
+
+    //是否启用值变化动画
+    bool m_bAnimationEnabled;
+
+    //值变化动画时长（毫秒）
+    int32_t m_nAnimationDuration;
+
+    //值变化动画的缓动曲线（默认 EaseOutQuad）
+    EasingFunctionType m_easingAnimation;
+
+    //值变化动画的缓动曲线名称（与 EasingFunctionType 枚举名一致，供 XML 往返与日志使用）
+    DString m_strAnimationEasing;
+
+    //值变化动画播放器
+    std::unique_ptr<AnimationPlayer> m_pAnimPlayer;
+
+    //是否自动显示百分比文本
+    bool m_bShowPercent;
+
+    //是否禁止发送进度值变化事件（SetValueNoEvent 期间为 true）
+    bool m_bDisableValueChangeEvent;
+
+    //纯色前景的圆角半径（DPI 缩放前原始值）
+    int32_t m_nProgressRadius;
 
 private:
     //是否倒数（进度从100 到 0）

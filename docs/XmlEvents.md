@@ -1,4 +1,6 @@
-﻿## XML文件中直接响应控件事件的说明文档
+简体中文 | [English](XmlEvents.en.md)
+
+## XML文件中直接响应控件事件的说明文档
 ### 一、使用示例    
 在XML文件中，支持直接写控件事件的响应代码，看几个使用示例。    
 示例1：`examples/layout`示例程序中，以下XML文件片段，演示如何使用Event标签在Option标签上挂载事件，实现容器的对齐方式设置：    
@@ -82,7 +84,7 @@
 上述示例实现的代码逻辑，其伪代码如下：    
 ```
 EventArgs msg; //假定在<Event>父节点的容器/控件上触发了某个事件
-ui::EventType eventType = ui::StringToEventType("event_name");
+ui::EventType eventType = ui::EventUtils::StringToEventType("event_name");
 if (msg.eventType == eventType) {
     ui::Control* pControl = FindControl("receiver_name");
     if (pControl != nullptr) {
@@ -159,6 +161,17 @@ if (msg.eventType == eventType) {
 |kEventTabSelect|"TabSelect"|"tab_select"|
 |kEventExpand|"Expand"|"expand"|
 |kEventCollapse|"Collapse"|"collapse"|
+|kEventPanelExpanding|"PanelExpanding"|"panel_expanding"|
+|kEventPanelCollapsing|"PanelCollapsing"|"panel_collapsing"|
+|kEventNavigationItemClick|"NavigationItemClick"|"navigation_item_click"|
+|kEventNavigationSelectionChanged|"NavigationSelectionChanged"|"navigation_selection_changed"|
+|kEventNavigationPaneToggling|"NavigationPaneToggling"|"navigation_pane_toggling"|
+|kEventNavigationPaneToggled|"NavigationPaneToggled"|"navigation_pane_toggled"|
+|kEventTimelineItemClick|"TimelineItemClick"|"timeline_item_click"|
+|kEventTagAdded|"TagAdded"|"tag_added"|
+|kEventTagRemoved|"TagRemoved"|"tag_removed"|
+|kEventTagClick|"TagClick"|"tag_click"|
+|kEventAutoCompleteSelect|"AutoCompleteSelect"|"auto_complete_select"|
 |kEventZoom|"Zoom"|"zoom"|
 |kEventTextChanged|"TextChanged"|"text_changed"|
 |kEventSelChanged|"SelChanged"|"sel_changed"|
@@ -168,6 +181,7 @@ if (msg.eventType == eventType) {
 |kEventLinkClick|"LinkClick"|"link_click"|
 |kEventScrollPosChanged|"ScrollPosChanged"|"scroll_pos_changed"|
 |kEventValueChanged|"ValueChanged"|"value_changed"|
+|kEventProgressCompleted|"ProgressCompleted"|"progress_completed"|
 |kEventPosChanged|"PosChanged"|"pos_changed"|
 |kEventSizeChanged|"SizeChanged"|"size_changed"|
 |kEventVisibleChanged|"VisibleChanged"|"visible_changed"|
@@ -183,12 +197,17 @@ if (msg.eventType == eventType) {
 |kEventSubItemMouseEnter|"SubItemMouseEnter"|"sub_item_mouse_enter"|
 |kEventSubItemMouseLeave|"SubItemMouseLeave"|"sub_item_mouse_leave"|
 |kEventReportViewItemFilled|"ReportViewItemFilled"|"report_view_item_filled"|
-|kEventReportViewSubItemFilled|"ReportViewSubItemFilled"|"report_view_sub_item_filled"|
 |kEventListViewItemFilled|"ListViewItemFilled"|"list_view_item_filled"|
 |kEventIconViewItemFilled|"IconViewItemFilled"|"icon_view_item_filled"|
 |kEventViewTypeChanged|"ViewTypeChanged"|"view_type_changed"|
 |kEventViewPosChanged|"ViewPosChanged"|"view_pos_changed"|
 |kEventViewSizeChanged|"ViewSizeChanged"|"view_size_changed"|
+|kEventColumnWidthChanged|"ColumnWidthChanged"|"column_width_changed"|
+|kEventColumnOrderChanged|"ColumnOrderChanged"|"column_order_changed"|
+|kEventColumnVisibleChanged|"ColumnVisibleChanged"|"column_visible_changed"|
+|kEventColumnSorted|"ColumnSorted"|"column_sorted"|
+|kEventCurrentCellChanged|"CurrentCellChanged"|"current_cell_changed"|
+|kEventCellSelectionChanged|"CellSelectionChanged"|"cell_selection_changed"|
 |kEventPathChanged|"PathChanged"|"path_changed"|
 |kEventPathClick|"PathClick"|"path_click"|
 |kEventDropEnter|"DropEnter"|"drop_enter"|
@@ -203,5 +222,9 @@ if (msg.eventType == eventType) {
 |kEventLoadingStop|"LoadingStop"|"loading_stop"|
 |kEventImageLoad|"ImageLoad"|"image_load"|
 |kEventImageDecode|"ImageDecode"|"image_decode"|
+|kEventViewModeChanged|"ViewModeChanged"|"view_mode_changed"|
+|kEventDisplayDateChanged|"DisplayDateChanged"|"display_date_changed"|
 
 以上列表中，在XML中使用"事件的XML名称1"或者"事件的XML名称2"均可，两个名称都认。
+
+> 说明：事件 `kEventReportViewSubItemFilled` 已移除（原逐格填充事件，触发过于频繁、对性能影响较大），原有功能可使用 `kEventReportViewItemFilled` 替代（`pEventData` 为 `ListCtrlItem*`；`pExtraData` 为本次填充的 `ListCtrlSubItem*`：整行填充时为 `nullptr`，调用 `RefreshSubItem` 单格刷新时指向该单元格；可再通过 `GetSubItem(columnIndex)` 取到单元格）。

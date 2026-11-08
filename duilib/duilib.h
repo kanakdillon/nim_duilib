@@ -13,6 +13,8 @@
 #include "Utils/Clipboard.h"
 #include "Utils/FileTime.h"
 #include "Utils/TrayIcon.h"
+#include "Utils/MessageBoxWnd.h"
+#include "Utils/ToastWnd.h"
 
 #include "Image/Image.h"
 #include "Image/ImageAttribute.h"
@@ -68,6 +70,7 @@
 
 #include "Box/VBox.h"
 #include "Box/HBox.h"
+#include "Control/SearchBox.h"
 #include "Box/XmlBox.h"
 #include "Box/TileBox.h"
 #include "Box/TabBox.h"
@@ -75,6 +78,7 @@
 #include "Box/ListBox.h"
 #include "Box/VirtualListBox.h"
 #include "Box/GridBox.h"
+#include "Box/Panel.h"
 
 #include "Layout/Layout.h"
 
@@ -86,19 +90,33 @@
 #include "Control/DirectoryTree.h"
 
 #include "Control/Label.h"
+#include "Control/Badge.h"
+#include "Control/TagInput.h"
+#include "Control/AutoComplete.h"
 #include "Control/Button.h"
 #include "Control/CheckBox.h"
+#include "Control/Switch.h"
 #include "Control/Option.h"
 #include "Control/Split.h"
 
 #include "Control/Progress.h"
 #include "Control/CircleProgress.h"
+#include "Control/Chart.h"
+#include "Control/Marquee.h"
+#include "Control/Timeline.h"
+#include "Control/Stepper.h"
 #include "Control/Slider.h"
+#include "Control/RangeSlider.h"
 
 #include "Control/RichEdit.h"
+#include "Control/SpinBox.h"
 #include "Control/RichText.h"
 #include "Control/Menu.h"
 #include "Control/MenuBar.h"
+#include "Control/Flyout.h"
+#include "Control/Calendar.h"
+#include "Control/CalendarFlyout.h"
+#include "Control/NavigationView.h"
 #include "Control/DateTime.h"
 #include "Control/Line.h"
 #include "Control/IPAddress.h"
@@ -111,6 +129,8 @@
 #include "Control/AddressBar.h"
 #include "Control/ChildWindow.h"
 #include "Control/GroupBox.h"
+#include "Control/StatusBar.h"
+#include "Control/ToolBar.h"
 
 #include "Control/ListCtrl.h"
 #include "Control/ListCtrlReportView.h"

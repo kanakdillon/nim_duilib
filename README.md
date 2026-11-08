@@ -1,3 +1,5 @@
+简体中文 | [English](README.en.md)
+
 # nim_duilib
 
 [nim_duilib](https://github.com/rhett-lee/nim_duilib) 是一款基于C++开发的跨平台界面库，源于经典的 duilib 界面库并进行了深度优化与功能扩展，支持Windows/Linux/macOS/FreeBSD平台，支持的Linux系统包括OpenEuler、OpenKylin、UbuntuKylin、统信UOS、中科方德、Ubuntu、Fedora、Debian等，专注于简化桌面应用的高效开发。其设计融合了DirectUI理念，通过XML描述界面布局，实现视觉与逻辑的分离，显著提升开发灵活性与维护性。
@@ -56,7 +58,7 @@
     <tr><td align="left">11. 重新设计图片管理的接口和加载流程（Image目录），支持多线程加载图片，以更好的扩展其他图片格式支持</td></tr>
     <tr><td align="left">12. 重新设计全局资源管理器的XML文件结构（global.xml），改进字体管理功能，支持字体回退功能，从而支持Emoji字体显示；支持浅色主题和深色主题，支持强调色</td></tr>
     <tr>
-        <td rowspan="22">功能完善</td>
+        <td rowspan="23">功能完善</td>
         <td align="left">1. 对窗口类（Window）增加了新的属性：的功能进行了完善，提高对DPI自适应、窗口消息的代码容错，代码结构做了调整</td>
     </tr>
     <tr><td align="left">2. 对窗口类（Window）增加了新的属性：use_system_caption，snap_layout_menu，sys_menu，sys_menu_rect, icon属性，提供使用操作系统默认标题栏的选项，自绘标题栏的功能与系统标题栏的功能相似</td></tr>
@@ -80,8 +82,9 @@
     <tr><td align="left">20. Label文本显示控件的功能加强：对文本齐方式新增加"两端对齐"，新增对竖排文本的支持（文本绘制方向从上到下，从右到左），新增支持设置行间距和设置字间距</td></tr>
     <tr><td align="left">21. Control控件支持全屏显示（通过调用新增加的Window::SetFullscreenControl函数实现该功能），CEF控件和WebView2控件支持F11切换页面全屏</td></tr>
     <tr><td align="left">22. 完善控件动画的功能细节，并引入缓动函数，支持设置控件动画的属性，比如设置缓动函数类型，设置动画总时长和播放间隔等</td></tr>
+    <tr><td align="left">23. 上下文菜单统一 API：Control::AttachPopupMenu 一行代码把右键菜单绑定到任意控件（自动创建菜单、坐标换算、菜单项回调，支持菜单弹出后动态调整），配套 DetachPopupMenu 解除绑定</td></tr>
     <tr>
-        <td rowspan="24">新增控件/新增容器</td>
+        <td rowspan="44">新增控件/新增容器</td>
         <td align="left">1. GroupBox：分组容器</td>
     </tr>
     <tr><td align="left">2. HotKey：热键控件</td></tr>
@@ -107,6 +110,26 @@
     <tr><td align="left">22. ControlMovableT(模板类，包含以下四个标准控件：ControlMovable/BoxMovable/HBoxMovable/VBoxMovable)：支持通过鼠标拖动来调整控件的位置，也支持通过鼠标拖动来调整父容器的位置</td></tr>
     <tr><td align="left">23. ControlResizableT(模板类，包含以下四个标准控件：ControlResizable/BoxResizable/HBoxResizable/VBoxResizable)：支持通过鼠标拖动来调整控件的大小，功能与调整窗口大小的功能相似</td></tr>
     <tr><td align="left">24. XmlBox：支持加载并预览界面库的XML文件的容器，可以用于预览XML文件中定义的控件显示效果</td></tr>
+    <tr><td align="left">25. Pane/PanelHBox/PanelVBox：带标题栏的面板容器（PanelTemplate<Box>），支持标题栏样式、折叠/展开、手风琴分组</td></tr>
+    <tr><td align="left">26. MessageBoxWnd：框架自带的自绘皮肤模态消息框</td></tr>
+    <tr><td align="left">27. ToastWnd：框架自带的自绘皮肤非模态通知框，自动消失、多条堆叠、悬停暂停、点击关闭</td></tr>
+    <tr><td align="left">28. SearchBox：搜索框组合控件，左侧图标+编辑框+清除按钮</td></tr>
+    <tr><td align="left">29. SpinBox：数字输入框，继承RichEdit，支持步长/范围/步进按钮</td></tr>
+    <tr><td align="left">30. Switch：滑块开关控件，继承CheckBox，自带滑动动画与颜色过渡</td></tr>
+    <tr><td align="left">31. Badge：角标控件，未读数/小红点，数量超限显示"99+"，count<=0 自动隐藏</td></tr>
+    <tr><td align="left">32. Flyout：Flyout是通用浮层（弹出卡片）窗口，。用于在锚点控件周围浮出任意Box内容（操作面板、确认卡片、富内容提示等）</td></tr>
+    <tr><td align="left">33. Calendar：日历控件</td></tr>
+    <tr><td align="left">34. NavigationView：侧边栏导航容器（左侧导航窗格+右侧内容区），支持导航项分组、底部设置项、窗格收起/展开</td></tr>
+    <tr><td align="left">35. Chart：轻量图表控件，支持折线图（line）、柱状图（bar）、饼图（pie）等形态</td></tr>
+    <tr><td align="left">36. Marquee：文本跑马灯控件，用于在界面中横向/纵向循环滚动显示文本</td></tr>
+    <tr><td align="left">37. Timeline：垂直时间轴控件（节点+连接线+内容，数据驱动、状态配色、正序/倒序、多语言绑定、滚动条）</td></tr>
+    <tr><td align="left">38. TagInput：标签输入框组合控件，输入回车（或指定分隔符）生成标签，支持关闭按钮/Backspace删除、去重、最大数量限制，标签过多自动换行</td></tr>
+    <tr><td align="left">39. AutoComplete：自动完成输入框组合控件，边输入边在编辑框下方弹出候选浮层（复用Flyout、不抢焦点、宽度跟随编辑框），支持前缀/包含匹配、忽略大小写、键盘上下键/回车/Esc与鼠标选择</td></tr>
+    <tr><td align="left">40. Mask：遮罩/蒙版层控件（继承Box），用于模态对话框背景遮罩、新手引导蒙层、加载遮罩；支持镂空高亮指定控件、镂空区域内点击穿透到目标控件、语义色适配深浅色</td></tr>
+    <tr><td align="left">41. StatusBar：状态栏控件（继承HBox），用于显示光标位置、字数、连接状态、后台进度等状态提示；子控件即状态面板，相邻面板之间自动绘制分隔线（可配置宽度与颜色），可选右下角尺寸手柄，详见 docs/Control.md</td></tr>
+    <tr><td align="left">42. ToolBar：工具条（工具栏）控件（继承HBox），用于承载一排工具按钮与分隔线；当可用宽度不足时，自动隐藏尾部子控件并在右端显示"更多"按钮，点击弹出浮层列出被收纳的项，并通过回调通知应用层，窗口宽度变化时自动重新计算，详见 docs/Control.md</td></tr>
+    <tr><td align="left">43. RangeSlider：双滑块范围选择控件（继承Progress），在一条轨道上放置下限/上限两个滑块并高亮选中区间，支持最小间距、区间颜色/圆角与范围变化回调（pEventData 携带 low/high），详见 docs/Control.md</td></tr>
+    <tr><td align="left">44. Stepper：向导步骤条控件，安装/注册/配置向导与审批流程场景；水平/垂直排列，节点显示序号或对勾，状态由当前索引+禁用集合派生（待开始/进行中/已完成/禁用），连接线按完成度着色，支持 Next/Back/GoTo 与点击跳转、多语言标题/描述，步骤变化回调的 pEventData 携带 currentIndex/oldIndex，详见 docs/Control.md</td></tr>
     <tr>
         <td rowspan="3">性能优化</td>
         <td align="left">1. 优化了Control及子控件的内存占用，在界面元素较多的时候，内存占有率有大幅降低</td>
@@ -288,7 +311,7 @@ if %errorlevel% neq 0 (
 （3）`git clone https://github.com/google/skia.git`  
 3. 编译Skia源码    
 （1）nim_duilib内部使用Skia作为界面绘制引擎，所以先要编译skia，优先用LLVM编译，运行流畅    
-（2）按照skia_compile目录中的[Windows下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/Windows%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)文档中的方法，编译出skia相关的.lib文件      
+（2）按照skia_compile目录中的[compile_skia_on_windows.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_windows.md)文档中的方法，编译出skia相关的.lib文件      
 4. 如果使用的是Visual Studio 2017/2019，需要使用develop-cpp17分支代码，需要在命令运行以下命令：    
    `git -C ./nim_duilib checkout develop-cpp17`
 5. 编译nim_duilib：进入 `build` 目录，打开 `examples.sln`（如果使用的是Visual Studio 2017，需要打开`examples_vs2017.sln`），可执行编译，编译完成的示例程序位于bin目录中。
@@ -352,7 +375,7 @@ chmod +x ./nim_duilib/build/build_duilib_all_in_one.sh
 ./nim_duilib/build/build_duilib_all_in_one.sh
 ```
 编译完成的示例程序位于bin目录中。    
-备注：UOS系统，需要先安装所需的开发环境，然后再安装，可参考文档：[统信UOS下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/%E7%BB%9F%E4%BF%A1UOS%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)。
+备注：UOS系统，需要先安装所需的开发环境，然后再安装，可参考文档：[compile_skia_on_uos.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_uos.md)。
 
 ### 三、手动编译过程（Linux平台）
 1. 设置工作目录：`~/develop`    
@@ -365,15 +388,15 @@ chmod +x ./nim_duilib/build/build_duilib_all_in_one.sh
 
 | 操作系统平台            |参考文档（网络链接）    |  参考文档（本地文件） |
 | :---                    | :---       |:---   |
-|OpenEuler                |[OpenEuler下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/OpenEuler%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|[OpenEuler下编译skia.md](../skia_compile/OpenEuler%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|
-|OpenKylin（开放麒麟）    |[OpenKylin下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/OpenKylin%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|[OpenKylin下编译skia.md](../skia_compile/OpenKylin%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|
-|UbuntuKylin（优麒麟）    |[UbuntuKylin下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/UbuntuKylin%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)  |[UbuntuKylin下编译skia.md](../skia_compile/UbuntuKylin%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|
-|中科方德                 |[中科方德下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/%E4%B8%AD%E7%A7%91%E6%96%B9%E5%BE%B7%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)  |[中科方德下编译skia.md](../skia_compile/%E4%B8%AD%E7%A7%91%E6%96%B9%E5%BE%B7%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) |
-|统信UOS                  |[统信UOS下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/%E7%BB%9F%E4%BF%A1UOS%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|[统信UOS下编译skia.md](../skia_compile/%E7%BB%9F%E4%BF%A1UOS%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|
-|Ubuntu                   |[Ubuntu下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/Ubuntu%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) | [Ubuntu下编译skia.md](../skia_compile/Ubuntu%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) |
-|Debian                   |[Debian下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/Debian%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)  |[Debian下编译skia.md](../skia_compile/Debian%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) |
-|Fedora                   |[Fedora下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/Fedora%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)  |[Fedora下编译skia.md](../skia_compile/Fedora%E4%B8%8B%E7%BC%96%E8%AF%91skia.md)|
-|OpenSuse                 |[OpenSuse下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/OpenSuse%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) | [OpenSuse下编译skia.md](../skia_compile/OpenSuse%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) |
+|OpenEuler                |[compile_skia_on_openeuler.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_openeuler.md)|[compile_skia_on_openeuler.md](../skia_compile/compile_skia_on_openeuler.md)|
+|OpenKylin（开放麒麟）    |[compile_skia_on_openkylin.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_openkylin.md)|[compile_skia_on_openkylin.md](../skia_compile/compile_skia_on_openkylin.md)|
+|UbuntuKylin（优麒麟）    |[compile_skia_on_ubuntukylin.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_ubuntukylin.md)  |[compile_skia_on_ubuntukylin.md](../skia_compile/compile_skia_on_ubuntukylin.md)|
+|中科方德                 |[compile_skia_on_neokylin.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_neokylin.md)  |[compile_skia_on_neokylin.md](../skia_compile/compile_skia_on_neokylin.md) |
+|统信UOS                  |[compile_skia_on_uos.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_uos.md)|[compile_skia_on_uos.md](../skia_compile/compile_skia_on_uos.md)|
+|Ubuntu                   |[compile_skia_on_ubuntu.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_ubuntu.md) | [compile_skia_on_ubuntu.md](../skia_compile/compile_skia_on_ubuntu.md) |
+|Debian                   |[compile_skia_on_debian.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_debian.md)  |[compile_skia_on_debian.md](../skia_compile/compile_skia_on_debian.md) |
+|Fedora                   |[compile_skia_on_fedora.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_fedora.md)  |[compile_skia_on_fedora.md](../skia_compile/compile_skia_on_fedora.md)|
+|OpenSuse                 |[compile_skia_on_opensuse.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_opensuse.md) | [compile_skia_on_opensuse.md](../skia_compile/compile_skia_on_opensuse.md) |
 
     注意事项：skia源码编译的时候，应使用LLVM编译，程序运行比较流畅。
 4. 编译SDL库 
@@ -480,7 +503,7 @@ chmod +x ./nim_duilib/build/build_duilib_all_in_one.sh
 
 | 操作系统平台 |参考文档（网络链接） |  参考文档（本地文件） |
 | :---         | :---                |:---                   |
-|macOS         |[macOS下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/macOS%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) | [macOS下编译skia.md](../skia_compile/macOS%E4%B8%8B%E7%BC%96%E8%AF%91skia.md) |
+|macOS         |[compile_skia_on_macos.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_macos.md) | [compile_skia_on_macos.md](../skia_compile/compile_skia_on_macos.md) |
 
     注意事项：skia源码编译的时候，应使用LLVM编译，程序运行比较流畅。
 4. 编译SDL库 
@@ -550,7 +573,7 @@ chmod +x ./nim_duilib/build/build_duilib_all_in_one.sh
 
 | 操作系统平台 |参考文档（网络链接） |  参考文档（本地文件） |
 | :---         | :---                |:---                   |
-|FreeBSD         |[FreeBSD下编译skia.md](https://github.com/rhett-lee/skia_compile/blob/main/FreeBSD下编译skia.md) | [FreeBSD下编译skia.md](../skia_compile/FreeBSD下编译skia.md) |
+|FreeBSD         |[compile_skia_on_freebsd.md](https://github.com/rhett-lee/skia_compile/blob/main/compile_skia_on_freebsd.md) | [compile_skia_on_freebsd.md](../skia_compile/compile_skia_on_freebsd.md) |
 
     注意事项：skia源码编译的时候，只支持使用LLVM编译。
 4. 编译SDL库 
@@ -659,6 +682,8 @@ nim_duilib/.claude/
  - [容器的样式](docs/Box.md)
  - [控件的样式](docs/Control.md)
  - [菜单的样式](docs/Menu.md)
+ - [模态消息框（MessageBoxWnd）](docs/MessageBox.md)
+ - [非模态通知框（ToastWnd）](docs/Toast.md)
  - [控件的事件/消息](docs/Events.md)
  - [XML文件中各控件的节点名称](docs/XmlNode.md)
  - [XML文件中直接响应控件的事件](docs/XmlEvents.md)

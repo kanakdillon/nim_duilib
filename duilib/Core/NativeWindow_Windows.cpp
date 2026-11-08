@@ -15,11 +15,47 @@
 #include <CommCtrl.h>
 #include <Olectl.h>
 #include <VersionHelpers.h>
+#include <set>
 
 namespace ui {
 
 //系统菜单延迟显示的定时器ID
 #define UI_SYS_MEMU_TIMER_ID 711
+
+/** 登记了需要放行 Enter 键的模态窗口句柄集合
+*   IsDialogMessageDuiLib 据此判断：仅对集合中的窗口放行 VK_RETURN，
+*   避免影响其他模态对话框"按回车关闭"的默认行为。
+*/
+static std::set<HWND> s_enterKeyPassthroughHwnds;
+
+/** 判断是否登记了放行Enter键
+*/
+static bool HasEnterKeyPassthrough(HWND hWnd)
+{
+    try {
+        if (!s_enterKeyPassthroughHwnds.empty()) {
+            if (s_enterKeyPassthroughHwnds.find(hWnd) != s_enterKeyPassthroughHwnds.end()) {
+                return true;
+            }
+        }
+    }
+    catch (...) {
+    }
+    return false;
+}
+
+void NativeWindow_Windows::SetEnterKeyPassthrough(HWND hWnd, bool bPassthrough)
+{
+    if (hWnd == nullptr) {
+        return;
+    }
+    if (bPassthrough) {
+        s_enterKeyPassthroughHwnds.insert(hWnd);
+    }
+    else {
+        s_enterKeyPassthroughHwnds.erase(hWnd);
+    }
+}
 
 NativeWindow_Windows::NativeWindow_Windows(INativeWindow* pOwner):
     m_pOwner(pOwner),
@@ -197,6 +233,22 @@ static BOOL WINAPI IsDialogMessageDuiLib(_In_ HWND hDlg, _In_ LPMSG lpMsg)
     if ((lpMsg != nullptr) && (lpMsg->message == WM_CHAR)) {
         //不将WM_CHAR识别为对话框消息
         return bRet;
+    }
+    if ((lpMsg != nullptr) && (lpMsg->message == WM_KEYDOWN) && (lpMsg->wParam == VK_TAB)) {
+        //不将TAB键识别为对话框消息：模态窗口（DialogBoxIndirectParam）的消息循环
+        //会先调用IsDialogMessage，它会吞掉TAB键（用于在原生子控件间切换焦点），
+        //导致窗口过程收不到WM_KEYDOWN，自绘控件的TAB焦点切换无法工作。
+        //返回false让消息正常派发给窗口过程，由duilib完成自绘控件间的焦点切换
+        //（见 Window::OnKeyDownMsg -> Window::SetNextTabControl）。
+        return bRet;
+    }
+    if ((lpMsg != nullptr) && (lpMsg->message == WM_KEYDOWN) && (lpMsg->wParam == VK_RETURN)) {
+        //不将Enter键识别为对话框消息：IsDialogMessage会把Enter转换为WM_COMMAND IDOK，
+        //导致窗口过程收不到WM_KEYDOWN，焦点按钮无法响应回车。
+        //但该放行只针对需要焦点按钮响应回车的窗口（如MessageBoxWnd），避免影响其他模态对话框的Enter关闭行为。
+        if (HasEnterKeyPassthrough(hDlg)) {
+            return bRet;
+        }
     }
     auto original = HookIsDialogMessage::Instance().GetTrampoline<PfnIsDialogMessage>();
     if (original) {
@@ -1053,10 +1105,10 @@ void NativeWindow_Windows::SetWindowAlwaysOnTop(bool bOnTop)
         return;
     }
     if (bOnTop) {
-        ::SetWindowPos(m_hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        ::SetWindowPos(m_hWnd, HWND_TOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
     else {
-        ::SetWindowPos(m_hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE);
+        ::SetWindowPos(m_hWnd, HWND_NOTOPMOST, 0, 0, 0, 0, SWP_NOMOVE | SWP_NOSIZE | SWP_NOACTIVATE);
     }
 }
 
@@ -1752,6 +1804,14 @@ bool NativeWindow_Windows::GetModifiers(UINT message, WPARAM wParam, LPARAM lPar
         }
         if (lParam & (1 << 29)) {
             modifierKey |= ModifierKey::kAlt;
+        }
+        //Shift / Control 在 WM_KEYDOWN 的 lParam 中没有可靠编码，
+        //必须用 GetKeyState 取实时按键状态，否则 Shift+方向、Ctrl+方向等组合键的修饰位永远为 0。
+        if (::GetKeyState(VK_SHIFT) & 0x8000) {
+            modifierKey |= ModifierKey::kShift;
+        }
+        if (::GetKeyState(VK_CONTROL) & 0x8000) {
+            modifierKey |= ModifierKey::kControl;
         }
         break;
     case WM_KEYUP:

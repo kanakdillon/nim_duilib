@@ -107,8 +107,9 @@
 **日期选择 DateTime:**
 
 ```xml
+<!-- 默认显示今天：current_time="true" 会在加载时初始化为当前本地时间 -->
 <DateTime name="dt_start" width="160" height="30"
-          format="%Y-%m-%d" edit_format="date_calendar"/>
+          format="%Y-%m-%d" edit_format="date_calendar" current_time="true"/>
 ```
 
 **超级链接 HyperLink:**
@@ -139,6 +140,25 @@
 </VBox>
 ```
 
+**可折叠面板 PanelVBox（另有 Panel / PanelHBox 两种布局）:**
+
+```xml
+<PanelVBox width="stretch" height="auto" min_height="120"
+           title="分组标题" title_height="30"
+           title_bk_color="bg_overlay" title_text_color="text_selected"
+           title_font="system_bold_14"
+           bkcolor="bg_container" border_size="1"
+           border_color="border_control_normal" border_round="4,4"
+           collapsible="true" collapsed="false" collapse_anim="220"
+           padding="10,10,10,10">
+    <!-- 标题栏之外的内容区；折叠时自动隐藏，不影响子控件 visible 状态 -->
+    <Label text="内容..." text_color="text_muted"/>
+</PanelVBox>
+```
+
+手风琴分组给同组面板加相同 `group="settings"`；标题栏右侧放常驻按钮用
+`title_slot="控件name"`（该子控件设 `float="true"`）。完整属性表见 `api-reference.md` 第二节。
+
 ## 3. C++ 事件绑定代码
 
 在窗口的 `OnInitWindow()` 中添加:
@@ -160,7 +180,7 @@ if (auto* chk = dynamic_cast<ui::CheckBox*>(FindControl(_T("chk_agree")))) {
 
 // 输入框文本变化
 if (auto* edit = dynamic_cast<ui::RichEdit*>(FindControl(_T("edit_input")))) {
-    edit->AttachTextChange([this](const ui::EventArgs&) {
+    edit->AttachTextChanged([this](const ui::EventArgs&) {
         // 文本变化
         return true;
     });

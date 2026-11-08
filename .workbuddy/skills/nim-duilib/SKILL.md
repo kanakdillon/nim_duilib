@@ -1,7 +1,6 @@
 ---
 name: nim-duilib
-description: nim_duilib C++ 桌面 UI 框架开发助手。This skill should be used when working with the nim_duilib / duilib C++ framework — creating a window or form class, writing or modifying XML skin layouts, adding or configuring controls (Button / RichEdit / ListBox / TreeView / Combo / Progress ...), binding events (XML inline `<Event>` or C++ Attach* callbacks), customizing themes, colors, fonts or global.xml Classes, or packaging and deploying resources (local folder / ZIP / embedded EXE). It also applies when diagnosing why a window renders blank, why a control silently has no style, or why a color or font reference fails.
-agent_created: true
+description: nim_duilib C++ desktop UI framework guide. Use when creating windows, XML layouts, adding controls, binding events, theming, or packaging resources. Also for diagnosing render or style issues.
 ---
 
 # nim_duilib 开发助手
@@ -21,8 +20,11 @@ nim_duilib 是一个 XML 驱动皮肤 + C++ 逻辑的跨平台桌面 UI 框架�
 | 任务 | 载入 |
 |------|------|
 | 新建窗口 / 窗体 / 对话框 | `references/create-window.md` |
+| 弹模态消息框 / 确认框（MessageBoxWnd） | `references/api-reference.md` 的「模态消息框 MessageBoxWnd」小节 |
+| 弹非模态通知 / Toast 提示（ToastWnd） | `references/api-reference.md` 的「非模态通知框 ToastWnd」小节 + `references/pitfalls.md` 第 19 条 |
 | 设计或修改 XML 布局、选容器、写尺寸 | `references/xml-layout.md` |
 | 添加控件、写控件属性、动态加数据 | `references/add-control.md` |
+| 给框架已有控件扩展新 XML 属性 / 改 duilib 头文件 | `references/framework-extend.md` |
 | 事件绑定（XML 内联或 C++ Attach）、查事件名 | `references/event-handler.md` |
 | 主题、颜色、字体、global.xml 的 Class | `references/theme.md` |
 | 资源打包、发布、ZIP、单文件 EXE | `references/resource-pack.md` |
